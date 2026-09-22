@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+config.toml
+token*.json
+client_secret*.json
+*.env
+.env*
+audit*.jsonl
+logs/
+public/gateway.env
+public/tunnel.env
+
+
+# Local benchmark/smoke data
+*.local.json

@@ -1,0 +1,40 @@
+# Copy to config.toml (gitignored) and replace every placeholder with values from your own Google Drive.
+
+# Google account used by the MCP server.
+account = "drive-bot@example.com"
+
+# Only files below these folders are visible or writable. Google sharing and this local allowlist
+# must both permit access.
+[[roots]]
+name = "ChatGPT"
+id = "YOUR_PRIMARY_ROOT_FOLDER_ID"
+
+[[roots]]
+name = "Claudecode"
+id = "YOUR_SECONDARY_ROOT_FOLDER_ID"
+
+[policy]
+# Folder or file IDs inside the roots that should be treated as outside the boundary.
+deny = []
+# drive_share / drive_unshare only accept these addresses. Link sharing is never possible.
+share_allowlist = ["owner@example.com"]
+# New files may only be created in subfolders of a root, not in the root folder itself.
+create_in_root = false
+
+# Optional per-spreadsheet write rules. Remove this block if you do not need a stricter rule.
+[[write_rules]]
+file_id = "YOUR_SPREADSHEET_ID"
+sheet = "Tasks"
+columns = 3
+allowed = { 1 = ["TODO", "DOING", "DONE"] }
+allow_formulas = false
+
+[index]
+# Local semantic search (python -m gdrive_mcp.index build|update). Embeddings are sent only to this
+# local Ollama endpoint unless you deliberately point it somewhere else.
+model = "embeddinggemma"
+exclude_ext = [".log", ".pyc", ".zip", ".jsonl"]
+ollama_url = "http://127.0.0.1:11434"
+# Examples only. Use paths that exist under your configured roots.
+exclude_globs = ["PrivateData/**/transcripts/*"]
+exclude_paths = ["PrivateData/logs"]
