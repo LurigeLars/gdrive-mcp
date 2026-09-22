@@ -1,0 +1,71 @@
+name: CodeQL security-and-quality pilot
+
+on:
+  push:
+    branches:
+      - ci/codeql-security-and-quality-pilot
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - actions
+          - python
+          - javascript-typescript
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config: |
+            threat-models: local
+            queries:
+              - uses: security-and-quality
+
+      - name: Analyze without uploading to Code Scanning
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /pilot/security-and-quality-local/${{ matrix.language }}
+          output: codeql-results
+          upload: never
+          upload-database: false
+
+      - name: Summarize SARIF
+        shell: bash
+        run: |
+          python - <<'PY'
+          import collections
+          import glob
+          import json
+
+          total = 0
+          counts = collections.Counter()
+          for path in glob.glob('codeql-results/**/*.sarif', recursive=True):
+              with open(path, encoding='utf-8') as handle:
+                  sarif = json.load(handle)
+              for run in sarif.get('runs', []):
+                  for result in run.get('results', []):
+                      counts[result.get('ruleId') or '<unknown>'] += 1
+                      total += 1
+
+          print('CODEQL_PILOT_SUMMARY=' + json.dumps({
+              'total_results': total,
+              'rules': [
+                  {'rule': rid, 'count': count}
+                  for rid, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+              ],
+          }, separators=(',', ':')))
+          PY
