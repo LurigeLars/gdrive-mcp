@@ -4,7 +4,7 @@
 name: gdrive-public
 services:
   gateway:
-    image: node:24.21.0-alpine
+    image: node:26.9.0-alpine
     container_name: gdrive-gateway
     command: ["node", "/app/gateway.mjs"]
     user: node
