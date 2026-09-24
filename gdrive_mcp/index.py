@@ -139,6 +139,7 @@ class Index:
             row = db.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
             return row[0] if row else None
         db.execute("INSERT OR REPLACE INTO meta VALUES(?,?)", (key, str(value)))
+        return None
 
     def _bump(self, db):
         self._meta(db, "version", int(self._meta(db, "version") or 0) + 1)
