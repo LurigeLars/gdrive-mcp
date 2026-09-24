@@ -12,7 +12,7 @@ export function parseAllowedTools(value) {
   return new Set((value || DEFAULT_ALLOWED_TOOLS).split(',').map(s => s.trim()).filter(Boolean));
 }
 
-export const wantsCompactResult = () => false;
+export const wantsCompactResult = (_params) => false;
 
 // Filters tools/list to the allowlist. Server instructions pass through unchanged.
 export function rewriteResponse(msg, { allowedTools }) {
