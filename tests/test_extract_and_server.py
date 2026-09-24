@@ -82,7 +82,9 @@ def test_image_downscaled_and_transparency_kept():
     from PIL import Image
 
     data, fmt = extract.image_for_model(jpeg(3000, 1000))
-    assert fmt == "jpeg" and max(Image.open(io.BytesIO(data)).size) == extract.MAX_IMAGE_SIDE
+    with Image.open(io.BytesIO(data)) as opened:
+        image_size = opened.size
+    assert fmt == "jpeg" and max(image_size) == extract.MAX_IMAGE_SIDE
     _, fmt = extract.image_for_model(jpeg(10, 10, mode="RGBA", fmt="PNG"))
     assert fmt == "png"
 
