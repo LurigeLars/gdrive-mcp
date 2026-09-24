@@ -41,6 +41,10 @@ if (ACCESS_ENABLED && !ACCESS_TEAM_DOMAIN) {
   console.error('ACCESS_AUD is set but ACCESS_TEAM_DOMAIN is missing; refusing to start');
   process.exit(1);
 }
+if (ACCESS_ENABLED && !/^[a-z0-9-]+\.cloudflareaccess\.com$/i.test(ACCESS_TEAM_DOMAIN)) {
+  console.error('ACCESS_TEAM_DOMAIN must be a Cloudflare Access team domain (*.cloudflareaccess.com); refusing to start');
+  process.exit(1);
+}
 // Drive write access must never sit behind a secret link alone: without Access the gateway only starts in an
 // explicit local test mode (ALLOW_SECRET_PATH=1, never used with the tunnel).
 if (!ACCESS_ENABLED && process.env.ALLOW_SECRET_PATH !== '1') {
@@ -189,7 +193,7 @@ function forward(req, res, body, ctx) {
     },
   );
   up.on('error', err => {
-    console.warn(`upstream error: ${err.code ?? err.message}`);
+    console.warn('upstream error');
     if (!res.headersSent) send(res, 502, 'upstream unavailable'); else res.destroy();
   });
   // Abort upstream only if the client goes away before we finish (req 'close' fires once the body is read).
@@ -204,13 +208,13 @@ http.createServer(async (req, res) => {
   if (ACCESS_ENABLED) {
     const v = await verifyAccessJwt(req.headers['cf-access-jwt-assertion']);
     if (!v.ok) {
-      console.warn(`access denied from ${ip}: ${v.reason}`);
+      console.warn('access denied');
       return send(res, 403, 'forbidden');
     }
     if (v.email) ip = v.email;
   }
   if (rateLimited(ip)) {
-    console.warn(`rate limited ${ip}`);
+    console.warn('rate limited');
     return send(res, 429, 'rate limited');
   }
   if (req.method !== 'POST') return forward(req, res, null, null);
@@ -233,16 +237,16 @@ http.createServer(async (req, res) => {
       if (m?.method === 'tools/list' || m?.method === 'initialize') needsRewrite = true;
       const verdict = checkRequest(m, ALLOWED_TOOLS);
       if (verdict.error) {
-        console.warn(`blocked tool ${m?.params?.name} from ${ip}`);
+        console.warn('blocked tool call');
         return sendJson(res, rpcErrorMsg(m.id, verdict.error));
       }
       if (verdict.toolError) {
-        console.warn(`refused unsupported options in ${m.params.name} from ${ip}`);
+        console.warn('refused unsupported tool options');
         return sendJson(res, rpcToolError(m.id, verdict.toolError));
       }
       if (m?.method === 'tools/call' && wantsCompactResult(m.params)) { compactIds.add(m.id); needsRewrite = true; }
     }
-    console.log(`${new Date().toISOString()} ${ip} ${msgs.map(m => m?.method === 'tools/call' ? `call:${m.params?.name}` : m?.method).join(',')}`);
+    console.log(`${new Date().toISOString()} request accepted`);
     forward(req, res, body, needsRewrite ? { allowedTools: ALLOWED_TOOLS, compactIds } : null);
   });
-}).listen(PORT, '0.0.0.0', () => console.log(`gateway listening on ${PORT}, tools: ${[...ALLOWED_TOOLS].join(',')}, cloudflare access: ${ACCESS_ENABLED ? `required (${ACCESS_TEAM_DOMAIN})` : 'off'}`));
+}).listen(PORT, '0.0.0.0', () => console.log(`gateway listening on ${PORT}, cloudflare access: ${ACCESS_ENABLED ? 'required' : 'off'}`));
