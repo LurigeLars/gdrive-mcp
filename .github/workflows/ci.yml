@@ -14,6 +14,7 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.9.0-alpine node --check public/gateway/gateway.mjs
           docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.9.0-alpine node --check public/gateway/policy.mjs
+          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.9.0-alpine node public/access-test.mjs file:///repo/public/gateway/gateway.mjs
   test:
     runs-on: ubuntu-latest
     steps:
