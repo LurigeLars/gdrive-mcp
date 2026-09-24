@@ -18,6 +18,8 @@ import {
   parseAllowedTools, checkRequest, wantsCompactResult, rewriteResponse, rpcError as rpcErrorMsg, rpcToolError,
 } from './policy.mjs';
 
+const logSafe = value => String(value ?? '').replace(/[\r\n\u2028\u2029]/g, ' ');
+
 const SECRET = process.env.GATEWAY_SECRET ?? '';
 if (SECRET.length < 32) {
   console.error('GATEWAY_SECRET missing or shorter than 32 chars; refusing to start');
@@ -39,6 +41,10 @@ const ACCESS_EMAILS = new Set((process.env.ACCESS_ALLOWED_EMAILS ?? '').split(',
 const ACCESS_ENABLED = ACCESS_AUD !== '';
 if (ACCESS_ENABLED && !ACCESS_TEAM_DOMAIN) {
   console.error('ACCESS_AUD is set but ACCESS_TEAM_DOMAIN is missing; refusing to start');
+  process.exit(1);
+}
+if (ACCESS_ENABLED && !/^[a-z0-9-]+\\.cloudflareaccess\\.com$/i.test(ACCESS_TEAM_DOMAIN)) {
+  console.error('ACCESS_TEAM_DOMAIN must be a Cloudflare Access team domain (*.cloudflareaccess.com); refusing to start');
   process.exit(1);
 }
 // Drive write access must never sit behind a secret link alone: without Access the gateway only starts in an
@@ -189,7 +195,7 @@ function forward(req, res, body, ctx) {
     },
   );
   up.on('error', err => {
-    console.warn(`upstream error: ${err.code ?? err.message}`);
+    console.warn(`upstream error: ${logSafe(err.code ?? err.message)}`);
     if (!res.headersSent) send(res, 502, 'upstream unavailable'); else res.destroy();
   });
   // Abort upstream only if the client goes away before we finish (req 'close' fires once the body is read).
@@ -204,13 +210,13 @@ http.createServer(async (req, res) => {
   if (ACCESS_ENABLED) {
     const v = await verifyAccessJwt(req.headers['cf-access-jwt-assertion']);
     if (!v.ok) {
-      console.warn(`access denied from ${ip}: ${v.reason}`);
+      console.warn(`access denied from ${logSafe(ip)}: ${logSafe(v.reason)}`);
       return send(res, 403, 'forbidden');
     }
     if (v.email) ip = v.email;
   }
   if (rateLimited(ip)) {
-    console.warn(`rate limited ${ip}`);
+    console.warn(`rate limited ${logSafe(ip)}`);
     return send(res, 429, 'rate limited');
   }
   if (req.method !== 'POST') return forward(req, res, null, null);
@@ -233,16 +239,16 @@ http.createServer(async (req, res) => {
       if (m?.method === 'tools/list' || m?.method === 'initialize') needsRewrite = true;
       const verdict = checkRequest(m, ALLOWED_TOOLS);
       if (verdict.error) {
-        console.warn(`blocked tool ${m?.params?.name} from ${ip}`);
+        console.warn(`blocked tool ${logSafe(m?.params?.name)} from ${logSafe(ip)}`);
         return sendJson(res, rpcErrorMsg(m.id, verdict.error));
       }
       if (verdict.toolError) {
-        console.warn(`refused unsupported options in ${m.params.name} from ${ip}`);
+        console.warn(`refused unsupported options in ${logSafe(m.params.name)} from ${logSafe(ip)}`);
         return sendJson(res, rpcToolError(m.id, verdict.toolError));
       }
       if (m?.method === 'tools/call' && wantsCompactResult(m.params)) { compactIds.add(m.id); needsRewrite = true; }
     }
-    console.log(`${new Date().toISOString()} ${ip} ${msgs.map(m => m?.method === 'tools/call' ? `call:${m.params?.name}` : m?.method).join(',')}`);
+    console.log(`${new Date().toISOString()} ${logSafe(ip)} ${logSafe(msgs.map(m => m?.method === 'tools/call' ? `call:${m.params?.name}` : m?.method).join(','))}`);
     forward(req, res, body, needsRewrite ? { allowedTools: ALLOWED_TOOLS, compactIds } : null);
   });
-}).listen(PORT, '0.0.0.0', () => console.log(`gateway listening on ${PORT}, tools: ${[...ALLOWED_TOOLS].join(',')}, cloudflare access: ${ACCESS_ENABLED ? `required (${ACCESS_TEAM_DOMAIN})` : 'off'}`));
+}).listen(PORT, '0.0.0.0', () => console.log(`gateway listening on ${PORT}, tools: ${logSafe([...ALLOWED_TOOLS].join(','))}, cloudflare access: ${ACCESS_ENABLED ? `required (${logSafe(ACCESS_TEAM_DOMAIN)})` : 'off'}`));
