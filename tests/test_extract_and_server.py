@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import importlib
 import io
 
 import anyio
 import pytest
 
-from gdrive_mcp import extract, server
+from gdrive_mcp import extract, paths, server
 from gdrive_mcp.tools import Tools
 from test_gdrive_mcp import FakeApi, cfg, jpeg
 
@@ -184,3 +185,19 @@ def test_json_body_sent_as_object_is_accepted(fake_server):
     assert server.body({"a": 1}) == '{\n  "a": 1\n}'
     assert server.body('{"a": 1}') == '{"a": 1}'
     assert server.body(None) is None
+
+
+def test_runtime_paths_ignore_inherited_path_overrides(monkeypatch, tmp_path):
+    """Sensitive runtime files must not become arbitrary env-controlled filesystem paths."""
+    evil = tmp_path / "attacker-controlled"
+    monkeypatch.setenv("LOCALAPPDATA", str(evil))
+    monkeypatch.setenv("GDRIVE_MCP_CONFIG", str(evil / "config.toml"))
+    monkeypatch.setenv("GDRIVE_MCP_TOKEN", str(evil / "token.json"))
+    monkeypatch.setenv("GDRIVE_MCP_AUDIT", str(evil / "audit.jsonl"))
+    monkeypatch.setenv("GDRIVE_MCP_INDEX", str(evil / "index.sqlite"))
+
+    current = importlib.reload(paths)
+    assert evil.resolve() not in {
+        current.CONFIG.parent, current.TOKEN.parent, current.AUDIT.parent, current.INDEX.parent
+    }
+    assert current.CONFIG == (current.REPO / "config.toml").resolve()

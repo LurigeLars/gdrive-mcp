@@ -1,9 +1,9 @@
 // Public gatekeeper in front of the gdrive MCP server (HTTP stream mode on the host, 127.0.0.1).
 // Copied from firecrawl-local/public/gateway/gateway.mjs; only policy.mjs and the Origin/credential header
 // stripping differ.
-// - Only POST/GET/DELETE /<GATEWAY_SECRET>/mcp is accepted (plus /mcp when Cloudflare Access is enforced);
-//   everything else is a bare 404.
-// - Optional Cloudflare Access: with ACCESS_AUD set, a valid Access JWT is required on every request.
+// - Only POST/GET/DELETE /mcp is accepted; an optional legacy /<GATEWAY_SECRET>/mcp alias may also be used.
+//   Both routes always require a valid Cloudflare Access JWT.
+// - Cloudflare Access is mandatory for every MCP request.
 // - Rewrites to the upstream endpoint (/mcp) with Host set to the upstream.
 // - Only tools in ALLOWED_TOOLS may be called, and tools/list is filtered to them.
 // - initialize responses get their server instructions replaced by instructions.md (next to this file),
@@ -19,8 +19,8 @@ import {
 } from './policy.mjs';
 
 const SECRET = process.env.GATEWAY_SECRET ?? '';
-if (SECRET.length < 32) {
-  console.error('GATEWAY_SECRET missing or shorter than 32 chars; refusing to start');
+if (SECRET && !/^[A-Za-z0-9_-]{32,128}$/.test(SECRET)) {
+  console.error('GATEWAY_SECRET must be 32-128 URL-safe characters when configured; refusing to start');
   process.exit(1);
 }
 const UPSTREAM_HOST = process.env.UPSTREAM_HOST ?? 'mcp';
@@ -31,24 +31,17 @@ const RATE_PER_MIN = Number(process.env.RATE_PER_MIN ?? 120);
 const MAX_BODY = 256 * 1024;
 const ALLOWED_TOOLS = parseAllowedTools(process.env.ALLOWED_TOOLS);
 
-// Cloudflare Access (optional). When ACCESS_AUD is set, every request must carry a valid Access JWT
-// (Cf-Access-Jwt-Assertion) for that application, and the plain /mcp path is accepted as well.
+// Cloudflare Access is mandatory. Deployment configuration may select the team/audience,
+// but it can no longer disable authentication or fall back to a secret-link-only mode.
 const ACCESS_TEAM_DOMAIN = process.env.ACCESS_TEAM_DOMAIN ?? '';
 const ACCESS_AUD = process.env.ACCESS_AUD ?? '';
 const ACCESS_EMAILS = new Set((process.env.ACCESS_ALLOWED_EMAILS ?? '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
-const ACCESS_ENABLED = ACCESS_AUD !== '';
-if (ACCESS_ENABLED && !ACCESS_TEAM_DOMAIN) {
-  console.error('ACCESS_AUD is set but ACCESS_TEAM_DOMAIN is missing; refusing to start');
-  process.exit(1);
-}
-if (ACCESS_ENABLED && !/^[a-z0-9-]+\.cloudflareaccess\.com$/i.test(ACCESS_TEAM_DOMAIN)) {
+if (!/^[a-z0-9-]+\.cloudflareaccess\.com$/i.test(ACCESS_TEAM_DOMAIN)) {
   console.error('ACCESS_TEAM_DOMAIN must be a Cloudflare Access team domain (*.cloudflareaccess.com); refusing to start');
   process.exit(1);
 }
-// Drive write access must never sit behind a secret link alone: without Access the gateway only starts in an
-// explicit local test mode (ALLOW_SECRET_PATH=1, never used with the tunnel).
-if (!ACCESS_ENABLED && process.env.ALLOW_SECRET_PATH !== '1') {
-  console.error('Cloudflare Access (ACCESS_AUD) is required for the gdrive gateway; refusing to start');
+if (!ACCESS_AUD || ACCESS_AUD.length > 512 || /\s/.test(ACCESS_AUD)) {
+  console.error('ACCESS_AUD is required and must be a single non-whitespace audience value; refusing to start');
   process.exit(1);
 }
 const ACCESS_ISSUER = `https://${ACCESS_TEAM_DOMAIN}`;
@@ -93,11 +86,13 @@ async function verifyAccessJwt(token) {
   }
 }
 
-const expected = Buffer.from(`/${SECRET}/mcp`);
+const legacyExpected = SECRET ? Buffer.from(`/${SECRET}/mcp`) : null;
 function pathAllowed(url) {
   const path = Buffer.from((url ?? '').split('?')[0]);
-  if (ACCESS_ENABLED && path.toString() === '/mcp') return true;
-  return path.length === expected.length && crypto.timingSafeEqual(path, expected);
+  if (path.toString() === '/mcp') return true;
+  return legacyExpected !== null &&
+    path.length === legacyExpected.length &&
+    crypto.timingSafeEqual(path, legacyExpected);
 }
 
 const windows = new Map(); // ip -> { start, count }
@@ -205,14 +200,12 @@ http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/healthz') return send(res, 200, 'ok');
   if (!pathAllowed(req.url)) return send(res, 404);
   let ip = clientIp(req);
-  if (ACCESS_ENABLED) {
-    const v = await verifyAccessJwt(req.headers['cf-access-jwt-assertion']);
-    if (!v.ok) {
-      console.warn('access denied');
-      return send(res, 403, 'forbidden');
-    }
-    if (v.email) ip = v.email;
+  const v = await verifyAccessJwt(req.headers['cf-access-jwt-assertion']);
+  if (!v.ok) {
+    console.warn('access denied');
+    return send(res, 403, 'forbidden');
   }
+  if (v.email) ip = v.email;
   if (rateLimited(ip)) {
     console.warn('rate limited');
     return send(res, 429, 'rate limited');
@@ -249,4 +242,4 @@ http.createServer(async (req, res) => {
     console.log(`${new Date().toISOString()} request accepted`);
     forward(req, res, body, needsRewrite ? { allowedTools: ALLOWED_TOOLS, compactIds } : null);
   });
-}).listen(PORT, '0.0.0.0', () => console.log(`gateway listening on ${PORT}, cloudflare access: ${ACCESS_ENABLED ? 'required' : 'off'}`));
+}).listen(PORT, '0.0.0.0', () => console.log(`gateway listening on ${PORT}, cloudflare access: required`));
