@@ -56,13 +56,14 @@ Run the streamable HTTP server on loopback:
 uv run python -m gdrive_mcp.server --http 8766
 ```
 
-The server also supports the following optional runtime overrides:
+Runtime filesystem locations are intentionally fixed rather than environment-overridable:
 
-- `GDRIVE_MCP_CONFIG` — config path; default `<repo>/config.toml`
-- `GDRIVE_MCP_TOKEN` — OAuth token path; default `%LOCALAPPDATA%/gdrive-mcp/token.json` on Windows
-- `GDRIVE_MCP_AUDIT` — audit log path; default `%LOCALAPPDATA%/gdrive-mcp/audit.jsonl` on Windows
+- policy/config: `<repo>/config.toml`
+- OAuth token: the current user's local `gdrive-mcp/token.json`
+- audit log: the current user's local `gdrive-mcp/audit.jsonl`
+- semantic index: the current user's local `gdrive-mcp/index.sqlite`
 
-Only variable names are documented here. Never commit their values or the referenced credential files.
+This prevents inherited process environment variables from redirecting sensitive reads or writes to arbitrary filesystem paths. Never commit the token or other credential material.
 
 ## OAuth token
 
@@ -88,9 +89,10 @@ local gitignored files:
 - `public/gateway.env`
 - `public/tunnel.env`
 
-The gateway verifies Cloudflare Access, applies a tool allowlist and request limits, strips credential/origin
-headers, and forwards only to the loopback MCP server. Configure your own public hostname and Access policy in
-Cloudflare; no domain, account or tunnel identifiers are stored in the repository.
+The gateway requires Cloudflare Access on every MCP request, applies a tool allowlist and request limits, strips
+credential/origin headers, and forwards only to the loopback MCP server. The plain `/mcp` route is canonical;
+a configured legacy secret-path alias is routing-only and never bypasses Access. Configure your own public
+hostname and Access policy in Cloudflare; no domain, account or tunnel identifiers are stored in the repository.
 
 ```bash
 docker compose -f compose.public.yaml up -d

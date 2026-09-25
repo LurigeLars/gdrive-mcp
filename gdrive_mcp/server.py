@@ -1,16 +1,13 @@
 """MCP server (stdio or streamable HTTP) exposing the fenced Drive/Docs/Sheets tools.
 
 Run: uv run --directory <repo> python -m gdrive_mcp.server [--http PORT]
-Env: GDRIVE_MCP_CONFIG (default <repo>/config.toml), GDRIVE_MCP_TOKEN and GDRIVE_MCP_AUDIT
-(default %LOCALAPPDATA%/gdrive-mcp/token.json and audit.jsonl).
+Runtime paths are fixed to <repo>/config.toml and the current user's local gdrive-mcp state directory.
 """
 from __future__ import annotations
 
 import functools
 import json
-import os
 import sys
-from pathlib import Path
 from typing import Literal
 
 from mcp.server.mcpserver import Image, MCPServer
@@ -19,10 +16,8 @@ from mcp.types import ToolAnnotations
 
 from .api import ApiError, GoogleApi
 from .policy import Config, PolicyError
+from .paths import AUDIT, CONFIG, HTTP_LOG, LOCAL, TOKEN
 from .tools import ImageResult, Tools
-
-REPO = Path(__file__).resolve().parents[1]
-LOCAL = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "gdrive-mcp"
 
 INSTRUCTIONS = """\
 DriveMCP: Google Drive, Docs and Sheets inside configured shared folders. Anything outside the configured
@@ -65,14 +60,11 @@ def body(value: str | dict | list | None) -> str | None:
 
 @functools.cache
 def tools() -> Tools:
-    config = Path(os.environ.get("GDRIVE_MCP_CONFIG", REPO / "config.toml"))
-    token = Path(os.environ.get("GDRIVE_MCP_TOKEN", LOCAL / "token.json"))
-    audit = Path(os.environ.get("GDRIVE_MCP_AUDIT", LOCAL / "audit.jsonl"))
-    if not config.exists():
-        raise ToolError(f"server config missing: {config} (copy config.example.toml)")
-    if not token.exists():
+    if not CONFIG.exists():
+        raise ToolError(f"server config missing: {CONFIG} (copy config.example.toml)")
+    if not TOKEN.exists():
         raise ToolError("Google token missing; run the auth step described in README")
-    return Tools(GoogleApi.from_token(token), Config.load(config), audit_path=audit)
+    return Tools(GoogleApi.from_token(TOKEN), Config.load(CONFIG), audit_path=AUDIT)
 
 
 def call(method: str, *args, **kwargs):
@@ -283,7 +275,7 @@ def main() -> None:
         port = int(sys.argv[2])
         if sys.stdout is None or sys.stderr is None:  # pythonw (scheduled task) has no console; uvicorn needs streams
             LOCAL.mkdir(parents=True, exist_ok=True)
-            sys.stdout = sys.stderr = open(LOCAL / "http-server.log", "a", encoding="utf-8", buffering=1)
+            sys.stdout = sys.stderr = open(HTTP_LOG, "a", encoding="utf-8", buffering=1)
         # Loopback only; the Docker gateway reaches it as host.docker.internal. No browser origins.
         hosts = [f"{h}:{port}" for h in ("127.0.0.1", "localhost", "host.docker.internal")]
         mcp.run("streamable-http", host="127.0.0.1", port=port,
