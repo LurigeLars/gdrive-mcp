@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.9.1
+    image: cloudflare/cloudflared:2026.9.3
     container_name: gdrive-cloudflared
     # Remotely managed tunnel: configure your own public hostname -> http://gateway:8080 in the
     # Cloudflare dashboard; TUNNEL_TOKEN comes from public/tunnel.env.
