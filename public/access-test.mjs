@@ -43,16 +43,12 @@ for (const [name, path, token, want] of cases) {
   if (!ok) fail++;
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}: ${r.status}${want === 200 ? ' jwt-stripped=' + (JSON.parse(body).result?.sawJwt === false) : ''}`);
 }
-// Without ACCESS_AUD the gateway must refuse to start unless ALLOW_SECRET_PATH=1 is set on purpose.
+// Without Cloudflare Access configuration the gateway must always refuse to start.
 const { spawnSync } = await import('node:child_process');
 const { fileURLToPath } = await import('node:url');
-const bare = { ...process.env, ACCESS_AUD: '', ACCESS_TEAM_DOMAIN: '', PORT: '18081', ALLOW_SECRET_PATH: '' };
+const bare = { ...process.env, ACCESS_AUD: '', ACCESS_TEAM_DOMAIN: '', PORT: '18081' };
 const refused = spawnSync(process.execPath, [fileURLToPath(process.argv[2])], { env: bare, timeout: 5000, encoding: 'utf8' });
 const okRefuse = refused.status === 1 && /ACCESS_AUD/.test(refused.stderr);
 if (!okRefuse) fail++;
 console.log(`${okRefuse ? 'PASS' : 'FAIL'} refuses to start without Access: exit ${refused.status}`);
-const allowed = spawnSync(process.execPath, [fileURLToPath(process.argv[2])], { env: { ...bare, ALLOW_SECRET_PATH: '1' }, timeout: 1500, encoding: 'utf8' });
-const okAllowed = allowed.signal === 'SIGTERM' && /listening/.test(allowed.stdout); // still running when the timeout killed it
-if (!okAllowed) fail++;
-console.log(`${okAllowed ? 'PASS' : 'FAIL'} starts with ALLOW_SECRET_PATH=1`);
 process.exit(fail ? 1 : 0);
