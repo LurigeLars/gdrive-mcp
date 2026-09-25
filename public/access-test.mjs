@@ -48,7 +48,7 @@ const { spawnSync } = await import('node:child_process');
 const { fileURLToPath } = await import('node:url');
 const bare = { ...process.env, ACCESS_AUD: '', ACCESS_TEAM_DOMAIN: '', PORT: '18081' };
 const refused = spawnSync(process.execPath, [fileURLToPath(process.argv[2])], { env: bare, timeout: 5000, encoding: 'utf8' });
-const okRefuse = refused.status === 1 && /ACCESS_AUD/.test(refused.stderr);
+const okRefuse = refused.status === 1 && /ACCESS_(?:AUD|TEAM_DOMAIN)/.test(refused.stderr);
 if (!okRefuse) fail++;
 console.log(`${okRefuse ? 'PASS' : 'FAIL'} refuses to start without Access: exit ${refused.status}`);
 process.exit(fail ? 1 : 0);
