@@ -8,7 +8,6 @@ from __future__ import annotations
 import functools
 import json
 import sys
-from pathlib import Path
 from typing import Literal
 
 from mcp.server.mcpserver import Image, MCPServer
