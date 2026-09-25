@@ -1,0 +1,49 @@
+name: One-time CodeQL triage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/triage-codeql-once.yml"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dismiss-reviewed-alerts:
+    if: github.repository == 'LurigeLars/gdrive-mcp'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dismiss reviewed DriveMCP false positives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh api --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/code-scanning/alerts/1" \
+            -f state='dismissed' \
+            -f dismissed_reason='false positive' \
+            -f dismissed_comment='Reviewed 2026-09-26: ACCESS_TEAM_DOMAIN is restricted to a bare *.cloudflareaccess.com hostname; HTTPS and /cdn-cgi/access/certs are fixed. The sink cannot target arbitrary/internal hosts.'
+
+          gh api --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "repos/${GITHUB_REPOSITORY}/code-scanning/alerts/42" \
+            -f state='dismissed' \
+            -f dismissed_reason='false positive' \
+            -f dismissed_comment='Reviewed 2026-09-26: GATEWAY_SECRET now controls only an optional legacy route alias. Every accepted MCP request still undergoes mandatory Cloudflare Access JWT verification, so this condition cannot bypass authentication.'
+
+          for alert in 16 17; do
+            gh api --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2026-03-10" \
+              "repos/${GITHUB_REPOSITORY}/code-scanning/alerts/${alert}" \
+              -f state='dismissed' \
+              -f dismissed_reason='false positive' \
+              -f dismissed_comment='Reviewed 2026-09-26: scripts/measure_search.py is an operator-invoked local benchmark utility. Its input/report paths are explicit CLI arguments, not remote, MCP, Drive-document, or gateway-controlled data.'
+          done
