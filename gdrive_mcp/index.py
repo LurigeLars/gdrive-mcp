@@ -11,6 +11,7 @@ to the token. Access is still decided by the Guard at query time.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 import time
@@ -30,7 +31,7 @@ from .tools import Tools, _dumps, _ext, _is_text
 
 # Task prefixes per embedding model family; models not listed take the text as it is.
 REPO = Path(__file__).resolve().parents[1]
-LOCAL = Path(__import__("os").environ.get("LOCALAPPDATA", Path.home())) / "gdrive-mcp"
+LOCAL = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "gdrive-mcp"
 
 PREFIXES = {
     "nomic-embed-text": ("search_document: ", "search_query: "),
@@ -307,8 +308,6 @@ class Index:
 
 
 def open_index(tools) -> Index:
-    import os
-
     config = Path(os.environ.get("GDRIVE_MCP_CONFIG", REPO / "config.toml"))
     db = Path(os.environ.get("GDRIVE_MCP_INDEX", LOCAL / "index.sqlite"))
     return Index(db, tools, IndexConfig.load(config))
@@ -316,8 +315,6 @@ def open_index(tools) -> Index:
 
 def load_tools() -> Tools:
     """Construct the CLI tool facade without importing the MCP server module."""
-    import os
-
     config = Path(os.environ.get("GDRIVE_MCP_CONFIG", REPO / "config.toml"))
     token = Path(os.environ.get("GDRIVE_MCP_TOKEN", LOCAL / "token.json"))
     audit = Path(os.environ.get("GDRIVE_MCP_AUDIT", LOCAL / "audit.jsonl"))
