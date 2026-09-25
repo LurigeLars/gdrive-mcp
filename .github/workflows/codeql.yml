@@ -22,8 +22,7 @@ jobs:
     name: Analyze (${{ matrix.language }})
     if: >-
       github.event_name != 'pull_request' ||
-      (github.actor != 'dependabot[bot]' &&
-       github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -44,6 +43,7 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: none
           config: |
+            threat-models: local
             queries:
               - uses: security-and-quality
 
