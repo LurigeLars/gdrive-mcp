@@ -1,6 +1,6 @@
 # ChatGPT access: shared Cloudflare Tunnel -> gateway (Access JWT + tool allowlist) -> gdrive MCP server on the host
 # (python -m gdrive_mcp.server --http 8766, bound to 127.0.0.1). No host port is published.
-# Run: docker compose -f compose.public.yaml up -d      Kill switch: docker stop gdrive-cloudflared
+# Run: docker compose -f compose.public.yaml up -d
 name: gdrive-public
 services:
   gateway:
@@ -16,7 +16,10 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - ./public/gateway:/app:ro
-    networks: [edge]
+    networks:
+      edge:
+        aliases:
+          - drive-gateway
     read_only: true
     restart: unless-stopped
 
