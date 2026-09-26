@@ -83,16 +83,14 @@ bootstrap is deployment-specific; no credentials are included in this repository
 
 ## Optional Cloudflare gateway
 
-`compose.public.yaml` runs a Node gateway and Cloudflare Tunnel container. Runtime secrets are loaded from
-local gitignored files:
+`compose.public.yaml` runs the Node gateway used by the shared Cloudflare Tunnel. Runtime Access settings are loaded from the local gitignored file:
 
 - `public/gateway.env`
-- `public/tunnel.env`
 
 The gateway requires Cloudflare Access on every MCP request, applies a tool allowlist and request limits, strips
 credential/origin headers, and forwards only to the loopback MCP server. The plain `/mcp` route is canonical;
 a configured legacy secret-path alias is routing-only and never bypasses Access. Configure your own public
-hostname and Access policy in Cloudflare; no domain, account or tunnel identifiers are stored in the repository.
+hostname and Access policy in Cloudflare, and route the shared tunnel to `http://drive-gateway:8080`; no account or tunnel credentials are stored in the repository.
 
 ```bash
 docker compose -f compose.public.yaml up -d
