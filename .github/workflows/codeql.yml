@@ -43,7 +43,6 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: none
           config: |
-            threat-models: local
             queries:
               - uses: security-and-quality
 
