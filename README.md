@@ -87,6 +87,14 @@ bootstrap is deployment-specific; no credentials are included in this repository
 
 - `public/gateway.env`
 
+Start from the sanitized template:
+
+```bash
+cp public/gateway.env.example public/gateway.env
+```
+
+Replace the placeholders with your own deployment values; never commit the real file.
+
 The gateway requires Cloudflare Access on every MCP request, applies a tool allowlist and request limits, strips
 credential/origin headers, and forwards only to the loopback MCP server. The plain `/mcp` route is canonical;
 a configured legacy secret-path alias is routing-only and never bypasses Access. Configure your own public
