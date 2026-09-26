@@ -10,7 +10,6 @@ client_secret*.json
 audit*.jsonl
 logs/
 public/gateway.env
-public/tunnel.env
 
 
 # Local benchmark/smoke data
