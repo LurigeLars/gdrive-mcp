@@ -6,21 +6,17 @@ This is an original MCP server, **not a fork of Google's Drive integrations or a
 
 Project-specific design includes:
 
-- a server-enforced allowlisted Drive-root boundary in addition to Google's own account permissions;
-- Drive, Docs, Sheets, comments, file extraction, and bounded write operations behind the same policy layer;
-- optional local semantic search and an audit log that avoids storing file contents;
-- local stdio/HTTP operation plus an optional Cloudflare Access gateway with explicit tool and request controls; and
-- local-only OAuth/runtime secrets, deterministic runtime paths, tests, and security-focused CI.
+- A server-enforced allowlisted Drive-root boundary in addition to Google's own account permissions.
+- Drive, Docs, Sheets, comments, file extraction, and bounded write operations behind the same policy layer.
+- Optional local semantic search and an audit log that avoids storing file contents.
+- Local stdio/HTTP operation plus an optional Cloudflare Access gateway with explicit tool and request controls.
+- Local-only OAuth/runtime secrets, deterministic runtime paths, tests, and security-focused CI.
 
 The project is intentionally independent of Google's built-in ChatGPT Drive connector.
 
+A self-hosted MCP server for Google Drive, Docs and Sheets with a configurable folder boundary. It supports local stdio clients and Streamable HTTP behind an optional gateway.
 
-A self-hosted MCP server for Google Drive, Docs and Sheets with a configurable folder boundary.
-It supports local stdio clients and streamable HTTP behind an optional gateway.
-
-The server is intentionally independent of Google's built-in Drive connector. Access is restricted twice:
-Google only exposes files the configured account can access, and `gdrive_mcp/policy.py` independently requires
-every file to resolve under an allowlisted Drive root.
+Access is restricted twice: Google only exposes files the configured account can access, and `gdrive_mcp/policy.py` independently requires every file to resolve under an allowlisted Drive root.
 
 ## Features
 
