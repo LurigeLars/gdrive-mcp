@@ -52,7 +52,10 @@ def test_windows_storage_path_uses_protection_before_disk(monkeypatch, tmp_path)
     assert token_store.load_token_info(path) == value
 
 
-def test_invalid_token_is_rejected(tmp_path):
+def test_invalid_token_is_rejected(monkeypatch, tmp_path):
+    # This test targets the JSON decoder. Windows DPAPI behavior is exercised by
+    # test_token_store_round_trip, so force the plaintext decoder path here.
+    monkeypatch.setattr(token_store, "is_windows", lambda: False)
     path = tmp_path / "token.json"
     path.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
 
