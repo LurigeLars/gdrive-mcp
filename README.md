@@ -76,6 +76,53 @@ Runtime filesystem locations are intentionally fixed rather than environment-ove
 
 This prevents inherited process environment variables from redirecting sensitive reads or writes to arbitrary filesystem paths. Never commit the token or other credential material.
 
+## Connecting a client
+
+The server speaks stdio for local clients and streamable HTTP on loopback for local agents that
+prefer it. Cloud chats reach it only through the Cloudflare gateway described below.
+
+| Client | Connection |
+|---|---|
+| Claude Desktop, Cursor, VS Code | local stdio from a checkout |
+| Claude Code, Codex | local stdio, or loopback HTTP on `127.0.0.1:8766` |
+| ChatGPT and other cloud chats | Cloudflare Access to the public gateway |
+
+Replace every path below with your own; nothing here should be copied literally.
+
+**Claude Desktop** — Settings > Developer > Edit Config, merge, then restart Desktop fully:
+
+```json
+{
+  "mcpServers": {
+    "gdrive": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/gdrive-mcp", "--frozen",
+               "python", "-m", "gdrive_mcp.server"]
+    }
+  }
+}
+```
+
+On Windows give `command` the absolute path to `uv.exe`; Claude Desktop does not resolve it from
+`PATH`.
+
+**Claude Code and Codex:**
+
+```bash
+claude mcp add gdrive -- uv run --directory /path/to/gdrive-mcp --frozen python -m gdrive_mcp.server
+codex mcp add gdrive -- uv run --directory /path/to/gdrive-mcp --frozen python -m gdrive_mcp.server
+```
+
+To use the loopback HTTP server instead, start it with `--http 8766` and point the client at
+`http://127.0.0.1:8766/mcp`.
+
+Every client reads the same `config.toml` and the same OAuth token, so they share one identity and
+one set of Drive roots. Running several clients at once is supported; they each start their own
+process against the same local state, which means the semantic index is opened more than once.
+
+**Verify** the connection by listing the tools: 26 is the full surface. `drive_recent` is the
+cheapest call that proves both OAuth and the Drive roots are working.
+
 ## OAuth token
 
 Generate the authorized-user token with your own OAuth Desktop client and keep both the token and client-secret
