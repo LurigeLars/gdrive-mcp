@@ -31,6 +31,8 @@ def migrate(legacy_path: Path, protected_path: Path) -> None:
         try:
             protected_path.unlink(missing_ok=True)
         except OSError:
+            # Preserve the original migration failure. Startup still refuses the
+            # legacy plaintext token, so a partial protected blob cannot enable use.
             pass
         raise
 
