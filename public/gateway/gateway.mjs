@@ -1,8 +1,8 @@
 // Public gatekeeper in front of the gdrive MCP server (HTTP stream mode on the host, 127.0.0.1).
 // Copied from firecrawl-local/public/gateway/gateway.mjs; only policy.mjs and the Origin/credential header
 // stripping differ.
-// - Only POST/GET/DELETE /mcp is accepted; an optional legacy /<GATEWAY_SECRET>/mcp alias may also be used.
-//   Both routes always require a valid Cloudflare Access JWT.
+// - Only POST/GET/DELETE /mcp is accepted.
+// - Every request requires a valid Cloudflare Access JWT.
 // - Cloudflare Access is mandatory for every MCP request.
 // - Rewrites to the upstream endpoint (/mcp) with Host set to the upstream.
 // - Only tools in ALLOWED_TOOLS may be called, and tools/list is filtered to them.
@@ -18,11 +18,6 @@ import {
   parseAllowedTools, checkRequest, wantsCompactResult, rewriteResponse, rpcError as rpcErrorMsg, rpcToolError,
 } from './policy.mjs';
 
-const SECRET = process.env.GATEWAY_SECRET ?? '';
-if (SECRET && !/^[A-Za-z0-9_-]{32,128}$/.test(SECRET)) {
-  console.error('GATEWAY_SECRET must be 32-128 URL-safe characters when configured; refusing to start');
-  process.exit(1);
-}
 const UPSTREAM_HOST = process.env.UPSTREAM_HOST ?? 'mcp';
 const UPSTREAM_PORT = Number(process.env.UPSTREAM_PORT ?? 3000);
 const UPSTREAM_PATH = process.env.UPSTREAM_PATH ?? '/mcp';
@@ -86,13 +81,8 @@ async function verifyAccessJwt(token) {
   }
 }
 
-const legacyExpected = SECRET ? Buffer.from(`/${SECRET}/mcp`) : null;
 function pathAllowed(url) {
-  const path = Buffer.from((url ?? '').split('?')[0]);
-  if (path.toString() === '/mcp') return true;
-  return legacyExpected !== null &&
-    path.length === legacyExpected.length &&
-    crypto.timingSafeEqual(path, legacyExpected);
+  return (url ?? '').split('?')[0] === '/mcp';
 }
 
 const windows = new Map(); // ip -> { start, count }
