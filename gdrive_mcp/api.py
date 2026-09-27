@@ -7,6 +7,8 @@ import uuid
 from pathlib import Path
 from urllib.parse import quote
 
+from .token_store import load_token_info, save_token_info
+
 DRIVE = "https://www.googleapis.com/drive/v3"
 UPLOAD = "https://www.googleapis.com/upload/drive/v3"
 DOCS = "https://docs.googleapis.com/v1/documents"
@@ -38,10 +40,10 @@ class GoogleApi:
         from google.oauth2.credentials import Credentials
 
         path = Path(token_path)
-        creds = Credentials.from_authorized_user_file(str(path), SCOPES)
+        creds = Credentials.from_authorized_user_info(load_token_info(path), SCOPES)
         if not creds.valid:
             creds.refresh(Request())
-            path.write_text(creds.to_json(), encoding="utf-8")
+            save_token_info(path, json.loads(creds.to_json()))
         return cls(AuthorizedSession(creds))
 
     def _call(self, method: str, url: str, *, raw: bool = False, ok404: bool = False, **kw):
