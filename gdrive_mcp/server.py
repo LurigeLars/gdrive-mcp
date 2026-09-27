@@ -10,15 +10,26 @@ import json
 import sys
 from typing import Literal
 
-from mcp.server.mcpserver import Image, MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import ToolAnnotations
-
-from .api import ApiError, GoogleApi
-from .policy import Config, PolicyError
+# Deliberately before the third-party imports. pythonw, which the scheduled task uses, starts with
+# no console, so sys.stdout and sys.stderr are None. A logging StreamHandler binds to sys.stderr at
+# construction time, and anything imported below configures logging -- so a handler built now would
+# keep a None stream, and then every log record raises inside logging itself and swallows the error
+# it was trying to report. Redirecting after the imports, which is where this used to live, is too
+# late: it leaves the handler pointing at nothing.
 from .paths import AUDIT, CONFIG, HTTP_LOG, LEGACY_TOKEN, LOCAL, TOKEN
-from .token_store import TokenStoreError
-from .tools import ImageResult, Tools
+
+if sys.stdout is None or sys.stderr is None:
+    LOCAL.mkdir(parents=True, exist_ok=True)
+    sys.stdout = sys.stderr = open(HTTP_LOG, "a", encoding="utf-8", buffering=1)
+
+from mcp.server.mcpserver import Image, MCPServer  # noqa: E402
+from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
+from mcp.types import ToolAnnotations  # noqa: E402
+
+from .api import ApiError, GoogleApi  # noqa: E402
+from .policy import Config, PolicyError  # noqa: E402
+from .token_store import TokenStoreError  # noqa: E402
+from .tools import ImageResult, Tools  # noqa: E402
 
 INSTRUCTIONS = """\
 DriveMCP: Google Drive, Docs and Sheets inside configured shared folders. Anything outside the configured
@@ -283,9 +294,6 @@ def main() -> None:
         from mcp.server.transport_security import TransportSecuritySettings
 
         port = int(sys.argv[2])
-        if sys.stdout is None or sys.stderr is None:  # pythonw (scheduled task) has no console; uvicorn needs streams
-            LOCAL.mkdir(parents=True, exist_ok=True)
-            sys.stdout = sys.stderr = open(HTTP_LOG, "a", encoding="utf-8", buffering=1)
         # Loopback only; the Docker gateway reaches it as host.docker.internal. No browser origins.
         hosts = [f"{h}:{port}" for h in ("127.0.0.1", "localhost", "host.docker.internal")]
         mcp.run("streamable-http", host="127.0.0.1", port=port,
