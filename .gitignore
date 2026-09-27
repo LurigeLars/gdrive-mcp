@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 config.toml
 token*.json
+token*.dpapi
 client_secret*.json
 *.env
 .env*
