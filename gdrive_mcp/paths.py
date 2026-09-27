@@ -18,7 +18,8 @@ LOCAL = (
 ).resolve()
 
 CONFIG = (REPO / "config.toml").resolve()
-TOKEN = (LOCAL / "token.json").resolve()
+TOKEN = (LOCAL / ("token.dpapi" if os.name == "nt" else "token.json")).resolve()
+LEGACY_TOKEN = (LOCAL / "token.json").resolve() if os.name == "nt" else None
 AUDIT = (LOCAL / "audit.jsonl").resolve()
 INDEX = (LOCAL / "index.sqlite").resolve()
 HTTP_LOG = (LOCAL / "http-server.log").resolve()
