@@ -1,7 +1,7 @@
 // Offline test of the gateway's Cloudflare Access JWT checks. Usage: node public/access-test.mjs file:///C:/path/to/gdrive-mcp/public/gateway/gateway.mjs
 import http from 'node:http';
 import crypto from 'node:crypto';
-const TEAM = 'test-team.cloudflareaccess.com', AUD = 'aud-123', SECRET = 'x'.repeat(40);
+const TEAM = 'test-team.cloudflareaccess.com', AUD = 'aud-123';
 const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
 const other = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
 const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 'RS256', use: 'sig' };
@@ -10,7 +10,7 @@ globalThis.fetch = async (url, opts) => String(url) === `https://${TEAM}/cdn-cgi
   ? new Response(JSON.stringify({ keys: [jwk] }), { status: 200 }) : realFetch(url, opts);
 // fake upstream MCP
 http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { ok: true, sawJwt: 'cf-access-jwt-assertion' in req.headers } })); }).listen(13000);
-Object.assign(process.env, { GATEWAY_SECRET: SECRET, UPSTREAM_HOST: '127.0.0.1', UPSTREAM_PORT: '13000', PORT: '18080',
+Object.assign(process.env, { UPSTREAM_HOST: '127.0.0.1', UPSTREAM_PORT: '13000', PORT: '18080',
   ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, ACCESS_ALLOWED_EMAILS: 'operator@example.com' });
 await import(process.argv[2]);
 await new Promise(r => setTimeout(r, 300));
@@ -24,9 +24,7 @@ const good = { aud: [AUD], iss: `https://${TEAM}`, exp: now + 600, iat: now, ema
 const call = async (path, token) => (await fetch(`http://127.0.0.1:18080${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { 'cf-access-jwt-assertion': token } : {}) }, body: '{"jsonrpc":"2.0","id":1,"method":"ping"}' }));
 const cases = [
   ['no token on /mcp', '/mcp', null, 403],
-  ['no token on secret path', `/${SECRET}/mcp`, null, 403],
   ['valid token /mcp', '/mcp', jwt(good), 200],
-  ['valid token secret path', `/${SECRET}/mcp`, jwt(good), 200],
   ['wrong audience', '/mcp', jwt({ ...good, aud: ['other'] }), 403],
   ['wrong issuer', '/mcp', jwt({ ...good, iss: 'https://evil.cloudflareaccess.com' }), 403],
   ['expired', '/mcp', jwt({ ...good, exp: now - 120 }), 403],
@@ -34,6 +32,7 @@ const cases = [
   ['forged signature', '/mcp', jwt(good, { key: other.privateKey }), 403],
   ['alg none', '/mcp', `${b64({ alg: 'none', kid: 'k1' })}.${b64(good)}.`, 403],
   ['unknown kid', '/mcp', jwt(good, { kid: 'nope' }), 403],
+  ['legacy secret-style path retired', '/legacy-secret/mcp', jwt(good), 404],
   ['wrong path', '/other', jwt(good), 404],
 ];
 let fail = 0;
