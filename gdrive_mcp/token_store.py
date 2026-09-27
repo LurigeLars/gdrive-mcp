@@ -144,6 +144,8 @@ def _atomic_write(path: Path, data: bytes) -> None:
         try:
             os.chmod(temporary_path, 0o600)
         except OSError:
+            # Windows ACLs/DPAPI provide the at-rest boundary; POSIX mode changes
+            # are best-effort because some filesystems do not implement chmod.
             pass
         os.replace(temporary_path, path)
     finally:
