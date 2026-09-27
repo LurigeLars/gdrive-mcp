@@ -5,6 +5,12 @@ import json
 import sys
 from pathlib import Path
 
+# Allow this operator script to be executed directly from the repository root
+# (uv run python scripts/migrate_token_dpapi.py) without installing the package.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from gdrive_mcp.paths import LEGACY_TOKEN, TOKEN
 from gdrive_mcp.token_store import TokenStoreError, is_windows, load_token_info, save_token_info
 
