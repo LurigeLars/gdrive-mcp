@@ -201,3 +201,22 @@ def test_runtime_paths_ignore_inherited_path_overrides(monkeypatch, tmp_path):
         current.CONFIG.parent, current.TOKEN.parent, current.AUDIT.parent, current.INDEX.parent
     }
     assert current.CONFIG == (current.REPO / "config.toml").resolve()
+    assert current.TOKEN.name == ("token.dpapi" if current.os.name == "nt" else "token.json")
+
+
+def test_server_refuses_legacy_plaintext_token(monkeypatch, tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_text("placeholder", encoding="utf-8")
+    legacy = tmp_path / "token.json"
+    legacy.write_text('{"refresh_token":"must-not-be-read"}', encoding="utf-8")
+    protected = tmp_path / "token.dpapi"
+
+    monkeypatch.setattr(server, "CONFIG", config)
+    monkeypatch.setattr(server, "LEGACY_TOKEN", legacy)
+    monkeypatch.setattr(server, "TOKEN", protected)
+    server.tools.cache_clear()
+    try:
+        with pytest.raises(server.ToolError, match="Legacy plaintext Google token detected"):
+            server.tools()
+    finally:
+        server.tools.cache_clear()

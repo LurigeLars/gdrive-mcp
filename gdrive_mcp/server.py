@@ -16,7 +16,8 @@ from mcp.types import ToolAnnotations
 
 from .api import ApiError, GoogleApi
 from .policy import Config, PolicyError
-from .paths import AUDIT, CONFIG, HTTP_LOG, LOCAL, TOKEN
+from .paths import AUDIT, CONFIG, HTTP_LOG, LEGACY_TOKEN, LOCAL, TOKEN
+from .token_store import TokenStoreError
 from .tools import ImageResult, Tools
 
 INSTRUCTIONS = """\
@@ -62,9 +63,18 @@ def body(value: str | dict | list | None) -> str | None:
 def tools() -> Tools:
     if not CONFIG.exists():
         raise ToolError(f"server config missing: {CONFIG} (copy config.example.toml)")
+    if LEGACY_TOKEN is not None and LEGACY_TOKEN.exists():
+        raise ToolError(
+            "Legacy plaintext Google token detected; run "
+            "`uv run python scripts/migrate_token_dpapi.py` before starting DriveMCP"
+        )
     if not TOKEN.exists():
         raise ToolError("Google token missing; run the auth step described in README")
-    return Tools(GoogleApi.from_token(TOKEN), Config.load(CONFIG), audit_path=AUDIT)
+    try:
+        api = GoogleApi.from_token(TOKEN)
+    except TokenStoreError as error:
+        raise ToolError(str(error)) from None
+    return Tools(api, Config.load(CONFIG), audit_path=AUDIT)
 
 
 def call(method: str, *args, **kwargs):

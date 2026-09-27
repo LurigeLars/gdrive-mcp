@@ -10,7 +10,7 @@ Project-specific design includes:
 - Drive, Docs, Sheets, comments, file extraction, and bounded write operations behind the same policy layer.
 - Optional local semantic search and an audit log that avoids storing file contents.
 - Local stdio/HTTP operation plus an optional Cloudflare Access gateway with explicit tool and request controls.
-- Local-only OAuth/runtime secrets, deterministic runtime paths, tests, and security-focused CI.
+- Windows OAuth token material protected at rest with DPAPI CurrentUser, plus local-only runtime configuration, deterministic runtime paths, tests, and security-focused CI.
 
 The project is intentionally independent of Google's built-in ChatGPT Drive connector.
 
@@ -38,7 +38,7 @@ Access is restricted twice: Google only exposes files the configured account can
    shares are limited to an explicit allowlist, permanent deletion is not exposed, and Docs/Sheets request
    types are allowlisted.
 4. **Untrusted content.** File contents are returned as data and are explicitly marked untrusted.
-5. **Local secrets.** OAuth material, runtime configuration, gateway credentials and audit logs are gitignored.
+5. **Local secrets.** On Windows, the Google OAuth authorized-user token is stored as a DPAPI CurrentUser blob; runtime configuration, gateway settings and audit logs remain local and gitignored.
 
 This is a powerful integration: the Google OAuth scope and the configured Drive shares determine the maximum
 Google-side access. Use a dedicated account and the smallest set of shared folders that satisfies your use case.
@@ -70,7 +70,7 @@ uv run python -m gdrive_mcp.server --http 8766
 Runtime filesystem locations are intentionally fixed rather than environment-overridable:
 
 - policy/config: `<repo>/config.toml`
-- OAuth token: the current user's local `gdrive-mcp/token.json`
+- OAuth token: `gdrive-mcp/token.dpapi` on Windows (DPAPI CurrentUser); `gdrive-mcp/token.json` on other platforms
 - audit log: the current user's local `gdrive-mcp/audit.jsonl`
 - semantic index: the current user's local `gdrive-mcp/index.sqlite`
 
@@ -78,9 +78,24 @@ This prevents inherited process environment variables from redirecting sensitive
 
 ## OAuth token
 
-The server expects a local OAuth token JSON at the configured/default token path. Generate it with your own
-OAuth Desktop client and keep both the token and client-secret JSON outside the repository. The exact auth
-bootstrap is deployment-specific; no credentials are included in this repository.
+Generate the authorized-user token with your own OAuth Desktop client and keep both the token and client-secret
+JSON outside the repository. The exact auth bootstrap is deployment-specific; no credentials are included here.
+
+On **Windows**, DriveMCP does not read the OAuth token from plaintext at runtime. The token is stored at
+`%USERPROFILE%\\AppData\\Local\\gdrive-mcp\\token.dpapi`, encrypted with Windows DPAPI CurrentUser. Existing
+installations that still have `%USERPROFILE%\\AppData\\Local\\gdrive-mcp\\token.json` must migrate it once:
+
+```powershell
+uv run python scripts/migrate_token_dpapi.py
+```
+
+The migration writes the protected blob, decrypts it again to verify an exact JSON round trip, and only then
+removes the legacy plaintext file. DriveMCP refuses to start on Windows while only the legacy plaintext token is
+present. OAuth token refreshes are written back through the same protected store.
+
+On macOS/Linux, the current implementation retains the existing local `token.json` behavior; use local filesystem
+permissions and keep the file out of source control. Platform-native keychain support there is a separate hardening
+task rather than an implied property of the Windows DPAPI implementation.
 
 ## Configuration
 
@@ -144,6 +159,6 @@ Each case is an object with `question`, `keywords`, and `expected_path`.
 
 ## Files that must remain local
 
-The `.gitignore` intentionally excludes configuration, OAuth material, `.env` files, audit logs and local
+The `.gitignore` intentionally excludes configuration, OAuth material (including DPAPI blobs), `.env` files, audit logs and local
 benchmark case files. Before making a fork or deployment public, still run a secret/PII scan over the full Git
 history; `.gitignore` only protects future commits.
