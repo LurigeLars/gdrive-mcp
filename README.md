@@ -1,5 +1,16 @@
 # gdrive-mcp
 
+## Current deployment and security posture
+
+The maintained deployment is a local, folder-bounded Google Drive runtime with an optional Cloudflare Access edge.
+
+- Google OAuth material stays on the host; Windows deployments use DPAPI CurrentUser storage rather than plaintext runtime tokens.
+- Every Drive operation is independently checked against the configured allowlisted roots.
+- The public gateway runs as the non-root `node` user with a read-only filesystem, `cap_drop: ALL`, and `no-new-privileges`.
+- Cloud-facing traffic reaches only the policy gateway; the local MCP runtime remains loopback-bound.
+- Host maintenance, when enabled, accepts only preconfigured repository aliases and fixed fast-forward pulls from `origin/main`; it does not expose shell access.
+- Machine-specific paths, account identities, Cloudflare values, root IDs, and credentials must remain in ignored local configuration.
+
 ## Repository status
 
 This is an original MCP server, **not a fork of Google's Drive integrations or another Drive MCP project**. It is designed around a self-hosted, folder-bounded Google Drive/Docs/Sheets deployment.
