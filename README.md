@@ -33,9 +33,9 @@ Access is restricted twice: Google only exposes files the configured account can
 
 - **Drive:** search, recent files, list, metadata, read, create, rename, move, copy, trash/restore and sharing.
 - **Docs:** indexed reads, revision-aware edits, markdown append and table insertion.
-- **Sheets:** reads, writes, appends and a bounded `batchUpdate` surface.
+- **Sheets:** reads, USER_ENTERED writes/appends and a bounded `batchUpdate` surface. Formulas follow normal Google Sheets semantics; prefix formula-looking literal text with an apostrophe.
 - **Comments:** read, create, reply and resolve.
-- **File extraction:** PDF, docx, pptx, xlsx and common image formats.
+- **File extraction:** PDF, docx, pptx, xlsx and common image formats, with bounded Office archive expansion before parsing.
 - **Semantic search:** optional local Ollama-backed index.
 - **Audit log:** write operations are recorded without dumping file contents.
 - **MCP annotations:** tools declare read-only/destructive/open-world hints; enforcement remains server-side.
@@ -47,7 +47,7 @@ Access is restricted twice: Google only exposes files the configured account can
    the shortcut and target.
 3. **Write controls.** Moves/copies stay inside allowed roots, creation can be forbidden directly in a root,
    shares are limited to an explicit allowlist, permanent deletion is not exposed, and Docs/Sheets request
-   types are allowlisted.
+   types are allowlisted; cell-value `batchUpdate` calls are refused on spreadsheets with configured write rules.
 4. **Untrusted content.** File contents are returned as data and are explicitly marked untrusted.
 5. **Local secrets.** On Windows, the Google OAuth authorized-user token is stored as a DPAPI CurrentUser blob; runtime configuration, gateway settings and audit logs remain local and gitignored.
 
@@ -131,7 +131,7 @@ Every client reads the same `config.toml` and the same OAuth token, so they shar
 one set of Drive roots. Running several clients at once is supported; they each start their own
 process against the same local state, which means the semantic index is opened more than once.
 
-**Verify** the connection by listing the tools: 26 is the full surface. `drive_recent` is the
+**Verify** the connection by listing the tools: 27 is the full surface. `drive_recent` is the
 cheapest call that proves both OAuth and the Drive roots are working.
 
 ## OAuth token
@@ -179,8 +179,8 @@ cp public/gateway.env.example public/gateway.env
 
 Replace the placeholders with your own deployment values; never commit the real file.
 
-The gateway requires Cloudflare Access on every MCP request, applies a tool allowlist and request limits, strips
-credential/origin headers, and forwards only to the loopback MCP server. The plain `/mcp` route is canonical;
+The gateway requires Cloudflare Access on every MCP request, applies a tool allowlist and request limits, requires an
+explicit email allowlist, rejects browser-origin requests, strips credentials before forwarding, and forwards only to the loopback MCP server. The plain `/mcp` route is canonical;
 a configured legacy secret-path alias is routing-only and never bypasses Access. Configure your own public
 hostname and Access policy in Cloudflare, and route the shared tunnel to `http://drive-gateway:8080`; no account or tunnel credentials are stored in the repository.
 

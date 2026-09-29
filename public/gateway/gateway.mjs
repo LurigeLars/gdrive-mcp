@@ -39,6 +39,10 @@ if (!ACCESS_AUD || ACCESS_AUD.length > 512 || /\s/.test(ACCESS_AUD)) {
   console.error('ACCESS_AUD is required and must be a single non-whitespace audience value; refusing to start');
   process.exit(1);
 }
+if (!ACCESS_EMAILS.size) {
+  console.error('ACCESS_ALLOWED_EMAILS must contain at least one address; refusing to start');
+  process.exit(1);
+}
 const ACCESS_ISSUER = `https://${ACCESS_TEAM_DOMAIN}`;
 
 const jwks = { keys: new Map(), fetchedAt: 0 };
@@ -189,6 +193,12 @@ function forward(req, res, body, ctx) {
 http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/healthz') return send(res, 200, 'ok');
   if (!pathAllowed(req.url)) return send(res, 404);
+  // This endpoint is for server-to-server MCP traffic, never browser requests. Rejecting Origin
+  // avoids relying on cookie SameSite behavior for CSRF protection.
+  if (req.headers.origin) {
+    console.warn('browser origin refused');
+    return send(res, 403, 'forbidden');
+  }
   let ip = clientIp(req);
   const v = await verifyAccessJwt(req.headers['cf-access-jwt-assertion']);
   if (!v.ok) {

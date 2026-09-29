@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import io
+import zipfile
 
 import anyio
 import pytest
@@ -63,6 +64,15 @@ def test_pptx_text_and_notes():
     s.notes_slide.notes_text_frame.text = "Talarnot"
     text = extract.extract_text(_saved(p), extract.PPTX)
     assert "--- slide 1 ---" in text and "Bild ett" in text and "[notes] Talarnot" in text
+
+
+def test_office_archive_expansion_is_bounded(monkeypatch):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("word/document.xml", "x" * 1000)
+    monkeypatch.setattr(extract, "MAX_ARCHIVE_UNCOMPRESSED", 100)
+    with pytest.raises(ValueError, match="expands beyond"):
+        extract.extract_text(buf.getvalue(), extract.DOCX)
 
 
 def test_xlsx_values_and_row_cap(monkeypatch):
