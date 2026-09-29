@@ -1,0 +1,104 @@
+name: Static analysis
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.ps1"
+      - "**/*.psm1"
+      - "**/*.psd1"
+      - "**/*.sh"
+      - "**/Dockerfile"
+      - "**/Dockerfile.*"
+      - ".github/workflows/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.ps1"
+      - "**/*.psm1"
+      - "**/*.psd1"
+      - "**/*.sh"
+      - "**/Dockerfile"
+      - "**/Dockerfile.*"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workflows:
+    name: GitHub Actions / actionlint + ShellCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify ShellCheck
+        run: shellcheck --version
+
+      - name: Install verified actionlint v1.7.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            -o /tmp/actionlint.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
+          /tmp/actionlint -version
+
+      - name: Lint GitHub Actions workflows
+        run: /tmp/actionlint -color
+
+  powershell:
+    name: PowerShell / PSScriptAnalyzer
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install PSScriptAnalyzer 1.25.0
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force -AllowClobber
+          Import-Module PSScriptAnalyzer -RequiredVersion 1.25.0
+          Get-Module PSScriptAnalyzer | Select-Object Name, Version
+
+      - name: Analyze all PowerShell
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Import-Module PSScriptAnalyzer -RequiredVersion 1.25.0
+
+          $findings = @(
+            Invoke-ScriptAnalyzer -Path . -Recurse -Severity @("Error", "Warning")
+          )
+
+          $securityWarnings = @(
+            "PSAvoidUsingInvokeExpression",
+            "PSAvoidUsingPlainTextForPassword",
+            "PSAvoidUsingBrokenHashAlgorithms",
+            "PSAvoidUsingAllowUnencryptedAuthentication",
+            "PSAvoidUsingEmptyCatchBlock"
+          )
+
+          foreach ($finding in $findings) {
+            $severity = "$($finding.Severity)"
+            $annotation = if ($severity -eq "Error" -or $securityWarnings -contains $finding.RuleName) { "error" } else { "warning" }
+            $path = if ($finding.ScriptPath) { $finding.ScriptPath.Replace("$PWD\", "") } else { "" }
+            Write-Host "::${annotation} file=${path},line=$($finding.Line),col=$($finding.Column)::$($finding.RuleName): $($finding.Message)"
+          }
+
+          $blocking = @(
+            $findings | Where-Object {
+              "$($_.Severity)" -eq "Error" -or
+              $securityWarnings -contains $_.RuleName
+            }
+          )
+
+          if ($blocking.Count -gt 0) {
+            throw "PSScriptAnalyzer found $($blocking.Count) blocking finding(s)."
+          }
