@@ -70,6 +70,10 @@ jobs:
                   ref = match.group(1)
                   if ref.startswith("./") or ref.startswith("docker://"):
                       continue
+                  # CodeQL query-suite entries also use the YAML key "uses"
+                  # (for example "security-and-quality") but are not Actions.
+                  if "@" not in ref and "/" not in ref:
+                      continue
                   if "@" not in ref:
                       violations.append((path, lineno, ref))
                       continue
