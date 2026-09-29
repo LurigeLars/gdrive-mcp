@@ -66,13 +66,36 @@ def test_pptx_text_and_notes():
     assert "--- slide 1 ---" in text and "Bild ett" in text and "[notes] Talarnot" in text
 
 
-def test_office_archive_expansion_is_bounded(monkeypatch):
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("word/document.xml", "x" * 1000)
-    monkeypatch.setattr(extract, "MAX_ARCHIVE_UNCOMPRESSED", 100)
+def _archive_uncompressed_size(data: bytes) -> int:
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        return sum(info.file_size for info in zf.infolist())
+
+
+def test_real_docx_archive_expansion_is_bounded(monkeypatch):
+    import docx
+
+    d = docx.Document()
+    d.add_paragraph("x" * 200_000)
+    data = _saved(d)
+    expanded = _archive_uncompressed_size(data)
+    assert expanded > len(data) * 2  # genuine compressed OOXML, not a hand-built fake archive
+    monkeypatch.setattr(extract, "MAX_ARCHIVE_UNCOMPRESSED", expanded - 1)
     with pytest.raises(ValueError, match="expands beyond"):
-        extract.extract_text(buf.getvalue(), extract.DOCX)
+        extract.extract_text(data, extract.DOCX)
+
+
+def test_real_xlsx_archive_expansion_is_bounded(monkeypatch):
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    for i in range(100):
+        wb.active.append([f"{i:03d}-" + ("x" * 10_000)])
+    data = _saved(wb)
+    expanded = _archive_uncompressed_size(data)
+    assert expanded > len(data) * 2
+    monkeypatch.setattr(extract, "MAX_ARCHIVE_UNCOMPRESSED", expanded - 1)
+    with pytest.raises(ValueError, match="expands beyond"):
+        extract.extract_text(data, extract.XLSX)
 
 
 def test_xlsx_values_and_row_cap(monkeypatch):
