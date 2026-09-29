@@ -11,16 +11,9 @@ on:
       - "**/Dockerfile"
       - "**/Dockerfile.*"
       - ".github/workflows/**"
+  # security-gate is a required PR check, so this workflow must run for every PR to main.
   pull_request:
     branches: [main]
-    paths:
-      - "**/*.ps1"
-      - "**/*.psm1"
-      - "**/*.psd1"
-      - "**/*.sh"
-      - "**/Dockerfile"
-      - "**/Dockerfile.*"
-      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:
