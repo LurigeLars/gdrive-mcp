@@ -504,14 +504,20 @@ def test_backlog_update_checks_ruled_columns_by_position(tools):
     tools.sheets_write("TRACKER", "Backlog!D64:F64", [["OTHER", "x", None]])  # None leaves F unchanged
 
 
-def test_formulas_refused_by_default(tools):
-    with pytest.raises(PolicyError, match="formula"):
-        tools.sheets_write("TRACKER", "State!A1", [["=IMPORTXML(1)"]])
+def test_formulas_follow_google_semantics_by_default(tools, api):
+    tools.sheets_write("TRACKER", "State!A1", [["=1+1"]])
+    call = [c for c in api.calls if c[0] == "values_update"][-1]
+    assert call[3] == [["=1+1"]]
 
 
-def test_formulas_allowed_by_rule(api):
-    rule = P.SheetRule("TRACKER", "State", None, {}, allow_formulas=True)
-    Tools(api, cfg(sheet_rules=(rule,))).sheets_write("TRACKER", "State!A1", [["=1+1"]])
+def test_formula_policy_can_explicitly_forbid_formulas(api):
+    rule = P.SheetRule("TRACKER", "State", None, {}, allow_formulas=False)
+    locked = Tools(api, cfg(sheet_rules=(rule,)))
+    with pytest.raises(PolicyError, match="does not allow formulas"):
+        locked.sheets_write("TRACKER", "State!A1", [["=1+1"]])
+    # The normal Sheets escape keeps formula-looking input as literal text.
+    locked.sheets_write("TRACKER", "State!A1", [["'=1+1"]])
+    assert [c for c in api.calls if c[0] == "values_update"][-1][3] == [["'=1+1"]]
 
 
 def test_cell_limits_and_types(tools):
@@ -535,6 +541,14 @@ def test_sheets_edit_rules(tools):
     assert json.loads(tools.sheets_edit("TRACKER", [{"deleteSheet": {"sheetId": 7}}], confirm=True))["applied"] == 1
     with pytest.raises(PolicyError, match="not allowed"):
         tools.sheets_edit("TRACKER", [{"addChart": {}}], confirm=True)
+    value_write = {"updateCells": {"rows": [{"values": [{"userEnteredValue": {"formulaValue": "=1+1"}}]}],
+                                     "fields": "userEnteredValue", "start": {"sheetId": 7}}}
+    with pytest.raises(PolicyError, match="must use sheets_write/sheets_append"):
+        tools.sheets_edit("TRACKER", [value_write])
+    formatting = {"repeatCell": {"range": {"sheetId": 7},
+                                  "cell": {"userEnteredFormat": {"textFormat": {"bold": True}}},
+                                  "fields": "userEnteredFormat.textFormat.bold"}}
+    assert json.loads(tools.sheets_edit("TRACKER", [formatting]))["applied"] == 1
     assert json.loads(tools.sheets_edit("TRACKER", [delete], confirm=True))["applied"] == 1
 
 
@@ -692,14 +706,11 @@ def test_sheets_read_can_show_formulas(tools, api):
     assert "=SUM(B:B)" not in tools.sheets_read("TRACKER", "Backlog!A1:B1")  # computed values by default
 
 
-def test_a_formula_needs_the_caller_to_ask_for_it():
-    """A stray '=...' string must not silently become a formula, but the agent can request one."""
+def test_formula_policy_is_opt_out_not_opt_in():
     open_sheet = cfg(sheet_rules=(P.SheetRule("TRACKER", "Backlog", None, {}),))
     formula = [["=A1+1"]]
-    with pytest.raises(PolicyError, match="pass formulas=true"):
-        Tools(FakeApi(), open_sheet).sheets_write("TRACKER", "Backlog!A1", formula)
-    assert json.loads(Tools(FakeApi(), open_sheet).sheets_write("TRACKER", "Backlog!A1", formula, formulas=True))["path"]
-    assert json.loads(Tools(FakeApi(), open_sheet).sheets_append("TRACKER", "Backlog!A:A", formula, formulas=True))["path"]
+    assert json.loads(Tools(FakeApi(), open_sheet).sheets_write("TRACKER", "Backlog!A1", formula))["path"]
+    assert json.loads(Tools(FakeApi(), open_sheet).sheets_append("TRACKER", "Backlog!A:A", formula))["path"]
     locked = cfg(sheet_rules=(P.SheetRule("TRACKER", "Backlog", None, {}, False),))
     with pytest.raises(PolicyError, match="does not allow formulas"):
-        Tools(FakeApi(), locked).sheets_write("TRACKER", "Backlog!A1", formula, formulas=True)
+        Tools(FakeApi(), locked).sheets_write("TRACKER", "Backlog!A1", formula)

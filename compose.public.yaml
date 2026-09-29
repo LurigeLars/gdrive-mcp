@@ -21,6 +21,8 @@ services:
         aliases:
           - drive-gateway
     read_only: true
+    mem_limit: 256m
+    pids_limit: 64
     cap_drop:
       - ALL
     security_opt:

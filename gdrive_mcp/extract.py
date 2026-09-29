@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import zipfile
 
 PDF = "application/pdf"
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -12,11 +13,16 @@ IMAGE_MIMES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_IMAGE_SIDE = 1568
 MAX_XLSX_ROWS = 5000  # per workbook
+MAX_ARCHIVE_MEMBERS = 5000
+MAX_ARCHIVE_UNCOMPRESSED = 128 * 1024 * 1024
+MAX_ARCHIVE_MEMBER = 64 * 1024 * 1024
 
 
 def extract_text(data: bytes, mime: str) -> str:
     if mime == PDF:
         return _pdf(data)
+    if mime in (DOCX, PPTX, XLSX):
+        _check_office_archive(data)
     if mime == DOCX:
         return _docx(data)
     if mime == PPTX:
@@ -24,6 +30,22 @@ def extract_text(data: bytes, mime: str) -> str:
     if mime == XLSX:
         return _xlsx(data)
     raise ValueError(f"no text extractor for {mime}")
+
+
+def _check_office_archive(data: bytes) -> None:
+    """Reject compressed Office files that expand beyond bounded parser inputs."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            infos = zf.infolist()
+    except zipfile.BadZipFile as exc:
+        raise ValueError("invalid Office archive") from exc
+    if len(infos) > MAX_ARCHIVE_MEMBERS:
+        raise ValueError(f"Office archive has more than {MAX_ARCHIVE_MEMBERS} members")
+    total = sum(i.file_size for i in infos)
+    if total > MAX_ARCHIVE_UNCOMPRESSED:
+        raise ValueError(f"Office archive expands beyond {MAX_ARCHIVE_UNCOMPRESSED // 2**20} MB")
+    if any(i.file_size > MAX_ARCHIVE_MEMBER for i in infos):
+        raise ValueError(f"Office archive contains a member larger than {MAX_ARCHIVE_MEMBER // 2**20} MB")
 
 
 def _pdf(data: bytes) -> str:

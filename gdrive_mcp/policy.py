@@ -43,7 +43,7 @@ class SheetRule:
     sheet: str | None            # None = every tab of the file
     columns: int | None          # exact width of appended rows
     allowed: dict[int, frozenset[str]]
-    allow_formulas: bool | None = None  # true: always allowed here; false: never; unset: the call decides
+    allow_formulas: bool | None = None  # false forbids formulas; true/unset follows normal Google Sheets behavior
 
 
 @dataclass(frozen=True)
@@ -186,8 +186,25 @@ def check_requests(requests: list, allowed: frozenset[str], max_n: int) -> None:
     check_body_size(requests)
 
 
-def check_sheet_requests(requests: list, confirm: bool) -> None:
+def _contains_key(value, key: str) -> bool:
+    if isinstance(value, dict):
+        return key in value or any(_contains_key(v, key) for v in value.values())
+    if isinstance(value, list):
+        return any(_contains_key(v, key) for v in value)
+    return False
+
+
+def check_sheet_requests(cfg: Config, file_id: str, requests: list, confirm: bool) -> None:
     check_requests(requests, SHEET_REQUESTS, MAX_SHEET_REQUESTS)
+    # Cell-value writes on policy-regulated spreadsheets must use sheets_write/sheets_append,
+    # where A1 ranges can be checked against the configured column/value rules. Formatting-only
+    # updateCells/repeatCell requests remain available here.
+    if any(r.file_id == file_id for r in cfg.sheet_rules):
+        for i, req in enumerate(requests):
+            if _contains_key(req, "userEnteredValue"):
+                raise PolicyError(
+                    f"request {i}: cell value writes on this spreadsheet must use sheets_write/sheets_append"
+                )
     for i, req in enumerate(requests):
         if "deleteSheet" in req and not confirm:
             raise PolicyError(f"request {i}: deleteSheet removes a whole tab and needs confirm=true")
@@ -234,8 +251,7 @@ def split_a1(a1: str) -> tuple[str | None, int]:
     return (sheet or None), col
 
 
-def check_values(cfg: Config, file_id: str, a1: str, values, *, full_rows: bool,
-                 formulas: bool = False) -> None:
+def check_values(cfg: Config, file_id: str, a1: str, values, *, full_rows: bool) -> None:
     if not isinstance(values, list) or not values or not all(isinstance(r, list) for r in values):
         raise PolicyError("values must be a non-empty list of rows (lists)")
     if sum(len(r) for r in values) > MAX_CELLS:
@@ -246,17 +262,16 @@ def check_values(cfg: Config, file_id: str, a1: str, values, *, full_rows: bool,
     if file_rules and sheet is None:
         raise PolicyError("this spreadsheet has write rules; include the tab name in the range, e.g. 'Backlog!A1'")
     rules = [r for r in file_rules if r.sheet in (None, sheet)]
-    # A formula is written when the caller asks for one, or the sheet always allows them.
-    # A rule set to false forbids them whatever the call says.
-    vetoed = any(r.allow_formulas is False for r in rules)
-    formulas_ok = not vetoed and (formulas or any(r.allow_formulas for r in rules))
+    formulas_forbidden = any(r.allow_formulas is False for r in rules)
     for row in values:
         for cell in row:
             if cell is not None and not isinstance(cell, (str, int, float, bool)):
                 raise PolicyError(f"unsupported cell value type: {type(cell).__name__}")
-            if isinstance(cell, str) and cell.startswith(("=", "+", "@")) and not formulas_ok:
-                why = "this sheet does not allow formulas" if formulas else "pass formulas=true to write one"
-                raise PolicyError(f"formula-like cell refused: {cell[:40]!r} ({why})")
+            if isinstance(cell, str) and cell.startswith(("=", "+", "@")) and formulas_forbidden:
+                raise PolicyError(
+                    f"formula-like cell refused: {cell[:40]!r} (this sheet does not allow formulas; "
+                    "prefix literal text with an apostrophe)"
+                )
     for rule in rules:
         for row in values:
             if full_rows and rule.columns is not None and len(row) != rule.columns:

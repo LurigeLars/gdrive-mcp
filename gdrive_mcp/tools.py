@@ -514,28 +514,28 @@ class Tools:
     def _readback(self, file_id: str, updated_range: str | None) -> list:
         return self.api.values_get(file_id, updated_range)[:20] if updated_range else []
 
-    def sheets_write(self, file_id: str, range: str, values: list, formulas: bool = False) -> str:
-        """formulas=True writes cells starting with = as formulas instead of refusing them."""
+    def sheets_write(self, file_id: str, range: str, values: list) -> str:
+        """Write USER_ENTERED values. Formulas work normally; prefix literal formula-like text with an apostrophe."""
         m = self._check_kind(file_id, SHEET, "Google Sheet")
-        P.check_values(self.cfg, file_id, range, values, full_rows=False, formulas=formulas)
+        P.check_values(self.cfg, file_id, range, values, full_rows=False)
         res = self.api.values_update(file_id, range, values)
         rng = res.get("updatedRange")
-        self._audit("sheets_write", file_id, range=rng, cells=res.get("updatedCells"), formulas=formulas)
+        self._audit("sheets_write", file_id, range=rng, cells=res.get("updatedCells"))
         return _dumps({"path": m["path"], "updatedRange": rng, "updatedCells": res.get("updatedCells"),
                        "readback": self._readback(file_id, rng)})
 
-    def sheets_append(self, file_id: str, range: str, rows: list, formulas: bool = False) -> str:
+    def sheets_append(self, file_id: str, range: str, rows: list) -> str:
         m = self._check_kind(file_id, SHEET, "Google Sheet")
-        P.check_values(self.cfg, file_id, range, rows, full_rows=True, formulas=formulas)
+        P.check_values(self.cfg, file_id, range, rows, full_rows=True)
         res = self.api.values_append(file_id, range, rows)
         rng = res.get("updates", {}).get("updatedRange")
-        self._audit("sheets_append", file_id, range=rng, rows=len(rows), formulas=formulas)
+        self._audit("sheets_append", file_id, range=rng, rows=len(rows))
         return _dumps({"path": m["path"], "updatedRange": rng, "readback": self._readback(file_id, rng)})
 
     def sheets_edit(self, file_id: str, requests: list, confirm: bool = False) -> str:
         """Sheets batchUpdate with allowed request types. deleteDimension needs confirm=true."""
         m = self._check_kind(file_id, SHEET, "Google Sheet")
-        P.check_sheet_requests(requests, confirm)
+        P.check_sheet_requests(self.cfg, file_id, requests, confirm)
         res = self.api.sheets_batch_update(file_id, requests)
         self._audit("sheets_edit", file_id, kinds=sorted({next(iter(r)) for r in requests}), n=len(requests))
         return _dumps({"path": m["path"], "applied": len(requests), "replies": len(res.get("replies", []))})

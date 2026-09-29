@@ -27,7 +27,8 @@ file_id = "YOUR_SPREADSHEET_ID"
 sheet = "Tasks"
 columns = 3
 allowed = { 1 = ["TODO", "DOING", "DONE"] }
-allow_formulas = false
+# Optional hard policy for a governed sheet:
+# allow_formulas = false
 
 [index]
 # Local semantic search (python -m gdrive_mcp.index build|update). Embeddings are sent only to this

@@ -46,6 +46,7 @@ DriveMCP, it means these tools.
 - Tables: docs_insert_table writes a whole grid in one call; docs_edit only makes empty ones.
 - Comments: drive_comments to read a thread id, drive_comment to answer or resolve it.
 - Before drive_update_text call drive_read; pass its modifiedTime.
+- Sheets use USER_ENTERED semantics: formulas work normally; prefix literal text beginning with =, + or @ with an apostrophe.
 - New files go into subfolders of configured roots unless config explicitly allows root-level creation.
 - Sharing only works with addresses in the configured allowlist; trash only works for files this account created.
 """
@@ -274,19 +275,17 @@ def sheets_read(file_id: str, range: str, max_cell_chars: int = 0, formulas: boo
 
 
 @tool(annotations=CHANGE)
-def sheets_write(file_id: str, range: str, values: list[list[str | int | float | bool | None]],
-                 formulas: bool = False) -> str:
-    """Overwrite an A1 range with rows of values (entered as if typed; null keeps a cell).
-    A cell starting with = is refused unless formulas=True, so a stray string cannot become a formula."""
-    return call("sheets_write", file_id, range, values, formulas)
+def sheets_write(file_id: str, range: str, values: list[list[str | int | float | bool | None]]) -> str:
+    """Overwrite an A1 range with USER_ENTERED values (null keeps a cell). Formulas work as in Google Sheets.
+    To store literal text beginning with =, + or @, prefix the value with an apostrophe (for example, '=text)."""
+    return call("sheets_write", file_id, range, values)
 
 
 @tool(annotations=ADD)
-def sheets_append(file_id: str, range: str, rows: list[list[str | int | float | bool | None]],
-                  formulas: bool = False) -> str:
-    """Append rows after the table in range (e.g. 'Backlog!A:M'). Read the last rows first for the next ID.
-    A cell starting with = is refused unless formulas=True."""
-    return call("sheets_append", file_id, range, rows, formulas)
+def sheets_append(file_id: str, range: str, rows: list[list[str | int | float | bool | None]]) -> str:
+    """Append USER_ENTERED rows after the table in range (e.g. 'Backlog!A:M'). Read the last rows first for the
+    next ID. Formulas work normally; prefix literal text beginning with =, + or @ with an apostrophe."""
+    return call("sheets_append", file_id, range, rows)
 
 
 @tool(annotations=CHANGE)
