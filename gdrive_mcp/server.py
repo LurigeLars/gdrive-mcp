@@ -163,10 +163,19 @@ def drive_create(folder_id: str, name: str, kind: Literal["doc", "sheet", "slide
 
 
 @tool(annotations=CHANGE)
-def drive_update_text(file_id: str, content: str | dict | list, expected_modified_time: str) -> str:
-    """Replace the whole content of a plain text file (md, json, txt, csv, py ...). expected_modified_time is the
-    modifiedTime from drive_read; the write is refused if the file changed since then."""
-    return call("drive_update_text", file_id, body(content), expected_modified_time)
+def drive_update_text(file_id: str, content: str | dict | list, expected_modified_time: str,
+                      allow_shrink: bool = False) -> str:
+    """Replace the whole content of a plain text file (md, json, txt, csv, py ...).
+    expected_modified_time is the modifiedTime from drive_read/drive_get. Shrinks are refused by default to protect
+    against writing back a paginated partial read; set allow_shrink=true only for intentional deletion/truncation."""
+    return call("drive_update_text", file_id, body(content), expected_modified_time, allow_shrink)
+
+
+@tool(annotations=CHANGE)
+def drive_append_text(file_id: str, content: str | dict | list, expected_modified_time: str) -> str:
+    """Append content to a plain text file without read-modify-writing the whole file on the client.
+    expected_modified_time is the modifiedTime from drive_read/drive_get; the write is refused if the file changed."""
+    return call("drive_append_text", file_id, body(content), expected_modified_time)
 
 
 @tool(annotations=CHANGE)
