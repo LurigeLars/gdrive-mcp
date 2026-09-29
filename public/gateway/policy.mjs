@@ -2,7 +2,7 @@
 // The server enforces the Drive boundary itself; the gateway adds a tool allowlist as a second fence.
 export const DEFAULT_ALLOWED_TOOLS = [
   'drive_search', 'drive_semantic_search', 'drive_recent', 'drive_list', 'drive_get', 'drive_read',
-  'drive_create', 'drive_update_text', 'drive_rename', 'drive_move', 'drive_copy', 'drive_trash',
+  'drive_create', 'drive_update_text', 'drive_append_text', 'drive_rename', 'drive_move', 'drive_copy', 'drive_trash',
   'drive_untrash', 'drive_share', 'drive_unshare', 'drive_comments', 'drive_comment',
   'docs_get', 'docs_edit', 'docs_append_markdown', 'docs_insert_table',
   'sheets_get', 'sheets_read', 'sheets_write', 'sheets_append', 'sheets_edit',

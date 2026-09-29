@@ -334,8 +334,41 @@ def test_create_text_needs_text_extension(tools):
 def test_update_text_requires_same_modified_time(tools, api):
     with pytest.raises(PolicyError, match="changed"):
         tools.drive_update_text("T1", "new", "2020-01-01T00:00:00.000Z")
-    out = json.loads(tools.drive_update_text("T1", "new", "2026-09-17T10:00:00.000Z"))
+    out = json.loads(tools.drive_update_text(
+        "T1", "new", "2026-09-17T10:00:00.000Z", allow_shrink=True))
     assert out["modifiedTime"] == "2026-09-17T11:00:00.000Z"
+
+
+def test_partial_read_cannot_be_written_back_as_truncated_file(tools, api):
+    api.items["T1"]["size"] = "70000"
+    api.texts["T1"] = b"x" * 70000
+
+    out = tools.drive_read("T1", max_chars=70000)
+    assert 'totalChars="70000"' in out
+    assert 'nextOffset="50000"' in out
+
+    partial_reconstruction = ("x" * 50000) + "\nnew section"
+    with pytest.raises(PolicyError, match="refusing to shrink"):
+        tools.drive_update_text("T1", partial_reconstruction, "2026-09-17T10:00:00.000Z")
+
+
+def test_append_text_preserves_unread_tail(tools, api):
+    api.items["T1"]["size"] = "70000"
+    api.texts["T1"] = b"x" * 70000
+
+    out = json.loads(tools.drive_append_text("T1", "\nnew section", "2026-09-17T10:00:00.000Z"))
+    assert out["modifiedTime"] == "2026-09-17T11:00:00.000Z"
+
+    call = [c for c in api.calls if c[0] == "update_media"][-1]
+    assert len(call[2]) == 70012
+    assert call[2].startswith(b"x" * 50000)
+    assert call[2].endswith(b"\nnew section")
+
+
+def test_append_text_requires_same_modified_time(tools, api):
+    with pytest.raises(PolicyError, match="changed"):
+        tools.drive_append_text("T1", "\nnew", "2020-01-01T00:00:00.000Z")
+    assert not [c for c in api.calls if c[0] == "update_media"]
 
 
 def test_update_text_refuses_google_files(tools):
