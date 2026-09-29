@@ -116,6 +116,12 @@ class Tools:
             raise PolicyError(f"{m['path']}: not a {label} ({m.get('mimeType')})")
         return m
 
+    def _check_plain_text(self, file_id: str) -> dict:
+        m = self.guard.check(file_id)
+        if m.get("mimeType", "").startswith("application/vnd.google-apps.") or not _is_text(m):
+            raise PolicyError(f"{m['path']} is not a plain text file; use docs_*/sheets_* for Google files")
+        return m
+
     def _not_root(self, file_id: str, action: str) -> None:
         if file_id in self.cfg.roots:
             raise PolicyError(f"a root folder cannot be {action}")
@@ -252,17 +258,46 @@ class Tools:
         self._audit("drive_create", res["id"], folder_id=folder_id, kind=kind, chars=len(content or ""))
         return _dumps(_brief(self.guard.check(res["id"], res)))
 
-    def drive_update_text(self, file_id: str, content: str, expected_modified_time: str) -> str:
-        """Replace a text file. expected_modified_time must match the file's modifiedTime from drive_read."""
-        m = self.guard.check(file_id)
-        if m.get("mimeType", "").startswith("application/vnd.google-apps.") or not _is_text(m):
-            raise PolicyError(f"{m['path']} is not a plain text file; use docs_*/sheets_* for Google files")
+    def drive_update_text(self, file_id: str, content: str, expected_modified_time: str,
+                          allow_shrink: bool = False) -> str:
+        """Replace a text file. Shrinking requires allow_shrink=True to prevent partial-read truncation."""
+        m = self._check_plain_text(file_id)
         if m.get("modifiedTime") != expected_modified_time:
             raise PolicyError(f"{m['path']} changed since it was read (modifiedTime is now "
                               f"{m.get('modifiedTime')}); read it again before writing")
         P.check_body_size(content)
-        res = self.api.update_media(file_id, content.encode("utf-8"), m.get("mimeType") or "text/plain")
-        self._audit("drive_update_text", file_id, chars=len(content))
+        encoded = content.encode("utf-8")
+        size = m.get("size")
+        old_bytes = int(size) if size not in (None, "") else len(self._download(m, MAX_DOWNLOAD))
+        if len(encoded) < old_bytes and not allow_shrink:
+            raise PolicyError(
+                f"{m['path']}: refusing to shrink from {old_bytes} to {len(encoded)} bytes. "
+                "Use drive_append_text for appends, or pass allow_shrink=true only for an intentional deletion/truncation."
+            )
+        res = self.api.update_media(file_id, encoded, m.get("mimeType") or "text/plain")
+        self._audit("drive_update_text", file_id, chars=len(content), old_bytes=old_bytes,
+                    new_bytes=len(encoded), allow_shrink=allow_shrink)
+        return _dumps(_brief(self.guard.check(file_id, res)))
+
+    def drive_append_text(self, file_id: str, content: str, expected_modified_time: str) -> str:
+        """Append to a plain text file without requiring the caller to reconstruct the whole file."""
+        m = self._check_plain_text(file_id)
+        if m.get("modifiedTime") != expected_modified_time:
+            raise PolicyError(f"{m['path']} changed since it was read (modifiedTime is now "
+                              f"{m.get('modifiedTime')}); read it again before writing")
+        P.check_body_size(content)
+        current = self._download(m, MAX_DOWNLOAD)
+
+        # Recheck after downloading so an edit that happened during the read is not silently overwritten.
+        fresh = self._check_plain_text(file_id)
+        if fresh.get("modifiedTime") != expected_modified_time:
+            raise PolicyError(f"{fresh['path']} changed since it was read (modifiedTime is now "
+                              f"{fresh.get('modifiedTime')}); read it again before writing")
+
+        appended = content.encode("utf-8")
+        res = self.api.update_media(file_id, current + appended, fresh.get("mimeType") or "text/plain")
+        self._audit("drive_append_text", file_id, appended_chars=len(content),
+                    old_bytes=len(current), new_bytes=len(current) + len(appended))
         return _dumps(_brief(self.guard.check(file_id, res)))
 
     def drive_rename(self, file_id: str, new_name: str) -> str:
