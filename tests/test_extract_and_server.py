@@ -137,7 +137,8 @@ def test_tool_annotations(fake_server):
     assert all(a is not None and a.open_world_hint is False for a in ann.values())
     assert ann["drive_read"].read_only_hint and ann["drive_semantic_search"].read_only_hint
     assert ann["drive_create"].read_only_hint is False and ann["drive_create"].destructive_hint is False
-    for name in ("docs_edit", "sheets_write", "sheets_edit", "drive_trash", "drive_move", "drive_update_text"):
+    for name in ("docs_edit", "sheets_write", "sheets_edit", "drive_trash", "drive_move",
+                 "drive_update_text", "drive_append_text"):
         assert ann[name].destructive_hint is True, name
 
 
