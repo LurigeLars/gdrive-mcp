@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Verify ShellCheck
         run: shellcheck --version
@@ -51,12 +51,48 @@ jobs:
       - name: Lint GitHub Actions workflows
         run: /tmp/actionlint -color
 
+      - name: Enforce immutable action pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          pattern = re.compile(r'^\s*(?:-\s*)?uses:\s*([^#\s]+)')
+          violations = []
+          for path in pathlib.Path(".github/workflows").glob("*.y*ml"):
+              for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  match = pattern.match(line)
+                  if not match:
+                      continue
+                  ref = match.group(1)
+                  if ref.startswith("./") or ref.startswith("docker://"):
+                      continue
+                  # CodeQL query-suite entries also use the YAML key "uses"
+                  # (for example "security-and-quality") but are not Actions.
+                  if "@" not in ref and "/" not in ref:
+                      continue
+                  if "@" not in ref:
+                      violations.append((path, lineno, ref))
+                      continue
+                  revision = ref.rsplit("@", 1)[1]
+                  if not re.fullmatch(r"[0-9a-fA-F]{40}", revision):
+                      violations.append((path, lineno, ref))
+
+          for path, lineno, ref in violations:
+              print(f"::error file={path},line={lineno}::Action must be pinned to a full 40-character commit SHA: {ref}")
+          if violations:
+              sys.exit(1)
+          PY
+
   powershell:
     name: PowerShell / PSScriptAnalyzer
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Install PSScriptAnalyzer 1.25.0
         shell: pwsh
@@ -118,3 +154,22 @@ jobs:
           if ($blocking.Count -gt 0) {
             throw "PSScriptAnalyzer found $($blocking.Count) blocking finding(s)."
           }
+
+  security-gate:
+    name: security-gate
+    if: always()
+    needs:
+      - workflows
+      - powershell
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require static-analysis jobs
+        shell: bash
+        env:
+          WORKFLOWS_RESULT: ${{ needs.workflows.result }}
+          POWERSHELL_RESULT: ${{ needs.powershell.result }}
+        run: |
+          set -euo pipefail
+          test "$WORKFLOWS_RESULT" = "success"
+          test "$POWERSHELL_RESULT" = "success"
