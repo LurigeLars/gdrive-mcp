@@ -1,58 +1,134 @@
 # gdrive-mcp
 
-## Current deployment and security posture
+[![CI](https://github.com/LurigeLars/gdrive-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/LurigeLars/gdrive-mcp/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/LurigeLars/gdrive-mcp/actions/workflows/codeql.yml/badge.svg)](https://github.com/LurigeLars/gdrive-mcp/actions/workflows/codeql.yml)
+[![Static analysis](https://github.com/LurigeLars/gdrive-mcp/actions/workflows/static-analysis.yml/badge.svg)](https://github.com/LurigeLars/gdrive-mcp/actions/workflows/static-analysis.yml)
+![Python](https://img.shields.io/badge/python-3.12-blue)
 
-The maintained deployment is a local, folder-bounded Google Drive runtime with an optional Cloudflare Access edge.
+A self-hosted Model Context Protocol (MCP) server for Google Drive, Docs and Sheets with
+a **server-enforced folder boundary**.
 
-- Google OAuth material stays on the host; Windows deployments use DPAPI CurrentUser storage rather than plaintext runtime tokens.
-- Every Drive operation is independently checked against the configured allowlisted roots.
-- The public gateway runs as the non-root `node` user with a read-only filesystem, `cap_drop: ALL`, and `no-new-privileges`.
-- Cloud-facing traffic reaches only the policy gateway; the local MCP runtime remains loopback-bound.
-- Host maintenance, when enabled, accepts only preconfigured repository aliases and fixed fast-forward pulls from `origin/main`; it does not expose shell access.
-- Machine-specific paths, account identities, Cloudflare values, root IDs, and credentials must remain in ignored local configuration.
+It lets local or remote MCP clients search, read and perform reviewed writes in selected
+Google Drive roots without giving the model unrestricted access to everything the Google
+account can see.
 
-## Repository status
+## Why this project exists
 
-This is an original MCP server, **not a fork of Google's Drive integrations or another Drive MCP project**. It is designed around a self-hosted, folder-bounded Google Drive/Docs/Sheets deployment.
+Google OAuth permissions answer one question:
 
-Project-specific design includes:
+> What can this Google account access?
 
-- A server-enforced allowlisted Drive-root boundary in addition to Google's own account permissions.
-- Drive, Docs, Sheets, comments, file extraction, and bounded write operations behind the same policy layer.
-- Optional local semantic search and an audit log that avoids storing file contents.
-- Local stdio/HTTP operation plus an optional Cloudflare Access gateway with explicit tool and request controls.
-- Windows OAuth token material protected at rest with DPAPI CurrentUser, plus local-only runtime configuration, deterministic runtime paths, tests, and security-focused CI.
+For an AI agent, that is often too broad. This project adds a second, independent
+question enforced by the MCP server:
 
-The project is intentionally independent of Google's built-in ChatGPT Drive connector.
+> Is this file or folder inside one of the Drive roots this agent is allowed to use?
 
-A self-hosted MCP server for Google Drive, Docs and Sheets with a configurable folder boundary. It supports local stdio clients and Streamable HTTP behind an optional gateway.
+Every Drive target is resolved through that policy before the operation is allowed.
+That gives the deployment a least-privilege boundary even when the Google account itself
+can see more of Drive.
 
-Access is restricted twice: Google only exposes files the configured account can access, and `gdrive_mcp/policy.py` independently requires every file to resolve under an allowlisted Drive root.
+The project is useful when you want an agent to work with a known subset of Drive —
+project folders, shared working areas or controlled Sheets/Docs — without exposing the
+rest of the account.
 
-## Features
+## What it can do
 
-- **Drive:** search, recent files, list, metadata, read, create, rename, move, copy, trash/restore and sharing.
-- **Docs:** indexed reads, revision-aware edits, markdown append and table insertion.
-- **Sheets:** reads, USER_ENTERED writes/appends and a bounded `batchUpdate` surface. Formulas follow normal Google Sheets semantics; prefix formula-looking literal text with an apostrophe.
-- **Comments:** read, create, reply and resolve.
-- **File extraction:** PDF, docx, pptx, xlsx and common image formats, with bounded Office archive expansion before parsing.
-- **Semantic search:** optional local Ollama-backed index.
-- **Audit log:** write operations are recorded without dumping file contents.
-- **MCP annotations:** tools declare read-only/destructive/open-world hints; enforcement remains server-side.
+| Area | Capabilities |
+|---|---|
+| Drive | search, recent files, list, metadata, read, create, rename, move, copy, trash/restore and sharing |
+| Docs | indexed reads, revision-aware edits, markdown append and table insertion |
+| Sheets | reads, USER_ENTERED writes/appends and a bounded batchUpdate surface |
+| Comments | read, create, reply and resolve |
+| Extraction | bounded PDF, DOCX, PPTX, XLSX and common image extraction |
+| Search | optional local semantic index |
+| Audit | write-operation log without storing file contents |
+
+The same policy layer applies regardless of whether the client is local stdio, local
+HTTP or a remote client behind the optional gateway.
 
 ## Security model
 
-1. **Google permission boundary.** Use a dedicated Google account and share only the Drive roots it needs.
-2. **Server boundary.** Every target is checked against `roots` in `config.toml`; shortcuts are checked at both
-   the shortcut and target.
-3. **Write controls.** Moves/copies stay inside allowed roots, creation can be forbidden directly in a root,
-   shares are limited to an explicit allowlist, permanent deletion is not exposed, and Docs/Sheets request
-   types are allowlisted; cell-value `batchUpdate` calls are refused on spreadsheets with configured write rules.
-4. **Untrusted content.** File contents are returned as data and are explicitly marked untrusted.
-5. **Local secrets.** On Windows, the Google OAuth authorized-user token is stored as a DPAPI CurrentUser blob; runtime configuration, gateway settings and audit logs remain local and gitignored.
+The design uses several independent boundaries rather than relying on one credential:
 
-This is a powerful integration: the Google OAuth scope and the configured Drive shares determine the maximum
-Google-side access. Use a dedicated account and the smallest set of shared folders that satisfies your use case.
+1. **Google account boundary** — the configured account can only see what Google allows.
+2. **Drive-root boundary** — every requested target must resolve under an allowlisted
+   root in `config.toml`.
+3. **Write policy** — creation, moves/copies, sharing and Docs/Sheets request types are
+   separately constrained.
+4. **Untrusted content boundary** — file contents are data returned to the model, never
+   instructions to the MCP server.
+5. **Local-secret boundary** — OAuth/config/audit/index state remains local and ignored
+   by Git.
+6. **Remote edge boundary** — cloud clients reach only the reviewed Cloudflare Access
+   gateway; the MCP runtime stays on loopback.
+
+Shortcuts are checked at both the shortcut and target. Moves and copies must remain
+inside allowed roots. Permanent deletion is not exposed.
+
+On Windows, OAuth authorized-user material is stored with DPAPI CurrentUser instead of
+a plaintext runtime token.
+
+## Architecture
+
+```text
+Google Drive / Docs / Sheets APIs
+              ^
+              |
+       Google OAuth identity
+              ^
+              |
+        gdrive-mcp policy
+       /       |        \
+      /        |         \
+ Drive-root  write     audit/index
+ checks      rules      local state
+      ^
+      |
+ local stdio / loopback HTTP
+      ^
+      |
+ MCP client
+```
+
+Optional remote access:
+
+```text
+ChatGPT / remote MCP client
+      |
+      v
+Cloudflare Access
+      |
+      v
+reviewed gateway
+      |
+      v
+loopback gdrive-mcp
+```
+
+## What this project is not
+
+- It is **not** a generic unrestricted Google Drive proxy.
+- It is **not** a fork of Google's Drive integrations or another Drive MCP server.
+- It is **not** the built-in ChatGPT Google Drive connector.
+- It does not bypass Google permissions.
+- It does not expose permanent deletion.
+- It does not make a file writable merely because it is readable.
+
+Client implementations and policy are intentionally local-first so the operator can
+choose exactly which folders and write surfaces are available.
+
+## Quick start
+
+Requirements:
+
+- Python 3.12
+- [uv](https://docs.astral.sh/uv/)
+- a Google Cloud OAuth Desktop client
+- Drive, Docs and Sheets APIs enabled
+- one or more Drive folder IDs to use as allowed roots
+
+The next section contains the concrete setup steps. Real OAuth material, root IDs,
+machine paths and gateway values must stay in ignored local configuration.
 
 ## Setup
 
