@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible non-security bug
+title: "[Bug]: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. For security vulnerabilities, do not use this form; report them privately through the repository Security tab.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable reproduction you can.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Relevant OS, runtime/app version, repository commit/version, and configuration details. Do not include secrets.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or diagnostics
+      description: Paste only the minimum useful, redacted output.
+      render: text
+  - type: checkboxes
+    id: security
+    attributes:
+      label: Security check
+      options:
+        - label: I have not included credentials, tokens, cookies, private endpoints, personal data, or security-sensitive exploit details.
+          required: true
