@@ -197,7 +197,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pillow", specifier = ">=13.0.0" },
-    { name = "pypdf", specifier = ">=6.19.0" },
+    { name = "pypdf", specifier = ">=6.21.2" },
     { name = "python-docx", specifier = ">=1.2.0" },
     { name = "python-pptx", specifier = ">=1.0.2" },
 ]
