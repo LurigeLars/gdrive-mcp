@@ -11,6 +11,10 @@ updates:
       timezone: "Europe/Stockholm"
     open-pull-requests-limit: 5
     groups:
+      security-minor-patch:
+        applies-to: "security-updates"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
       python-minor-patch:
         applies-to: "version-updates"
         patterns:
@@ -29,6 +33,10 @@ updates:
       timezone: "Europe/Stockholm"
     open-pull-requests-limit: 5
     groups:
+      security-minor-patch:
+        applies-to: "security-updates"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
       docker-compose-minor-patch:
         applies-to: "version-updates"
         patterns:
@@ -47,6 +55,10 @@ updates:
       timezone: "Europe/Stockholm"
     open-pull-requests-limit: 5
     groups:
+      security-minor-patch:
+        applies-to: "security-updates"
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
       github-actions-minor-patch:
         applies-to: "version-updates"
         patterns:
