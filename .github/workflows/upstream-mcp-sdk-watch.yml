@@ -20,6 +20,7 @@ jobs:
       - name: Check resolved SDK version against official stable release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
