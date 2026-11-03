@@ -1,0 +1,57 @@
+name: MCP Python SDK upstream release watch
+
+on:
+  schedule:
+    - cron: "33 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ISSUE_TITLE: "Upstream watch: MCP Python SDK release"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check resolved SDK version against official stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned="$(python3 -c 'import tomllib; p=tomllib.load(open("uv.lock","rb")); print(next(x["version"] for x in p["package"] if x["name"]=="mcp"))')"
+          latest="$(gh api repos/modelcontextprotocol/python-sdk/releases/latest --jq .tag_name)"
+          latest="${latest#v}"
+          [[ "$pinned" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            { echo "::error::Unexpected SDK release version"; exit 1; }
+          printf '%s\n' "uv.lock MCP SDK: $pinned; upstream latest: $latest" >> "$GITHUB_STEP_SUMMARY"
+          behind=false
+          if [[ "$pinned" != "$latest" ]] &&
+            [[ "$(printf '%s\n' "$pinned" "$latest" | sort -V | head -n1)" == "$pinned" ]]; then
+            behind=true
+          fi
+          number="$(gh issue list --state all --limit 500 --json number,title |
+            jq -r --arg title "$ISSUE_TITLE" '.[] | select(.title == $title) | .number' | head -n1)"
+          if [[ "$behind" == true ]]; then
+            body="MCP Python SDK locked at $pinned in uv.lock; upstream stable release is $latest.
+          https://github.com/modelcontextprotocol/python-sdk/releases/tag/v$latest
+
+          Check Dependabot, regenerate the uv.lock through a reviewed PR, and run CI. Never update runtime automatically."
+            if [[ -z "$number" ]]; then
+              gh issue create --title "$ISSUE_TITLE" --body "$body"
+            else
+              if [[ "$(gh issue view "$number" --json body --jq .body)" != "$body" ]]; then
+                gh issue edit "$number" --body "$body"
+              fi
+              if [[ "$(gh issue view "$number" --json state --jq .state)" == CLOSED ]]; then
+                gh issue reopen "$number"
+              fi
+            fi
+          elif [[ -n "$number" ]] && [[ "$(gh issue view "$number" --json state --jq .state)" == OPEN ]]; then
+            gh issue close "$number" --comment "uv.lock now matches or exceeds the upstream stable release."
+          fi
