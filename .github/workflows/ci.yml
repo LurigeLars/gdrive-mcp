@@ -16,10 +16,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Validate gateway on Node 26
         run: |
-          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.9.0-alpine node --check public/gateway/gateway.mjs
-          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.9.0-alpine node --check public/gateway/policy.mjs
-          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.9.0-alpine node --test public/gateway/policy.test.mjs
-          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.9.0-alpine node public/access-test.mjs file:///repo/public/gateway/gateway.mjs
+          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.13.0-alpine node --check public/gateway/gateway.mjs
+          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.13.0-alpine node --check public/gateway/policy.mjs
+          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.13.0-alpine node --test public/gateway/policy.test.mjs
+          docker run --rm -v "$PWD:/repo:ro" -w /repo node:26.13.0-alpine node public/access-test.mjs file:///repo/public/gateway/gateway.mjs
   test:
     strategy:
       matrix:
