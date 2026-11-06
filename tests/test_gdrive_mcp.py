@@ -550,6 +550,27 @@ def test_sheets_edit_rules(tools):
                                   "fields": "userEnteredFormat.textFormat.bold"}}
     assert json.loads(tools.sheets_edit("TRACKER", [formatting]))["applied"] == 1
     assert json.loads(tools.sheets_edit("TRACKER", [delete], confirm=True))["applied"] == 1
+    with pytest.raises(PolicyError, match="integer indexes"):
+        tools.sheets_edit("TRACKER", [{"deleteDimension": {"range": {"startIndex": "a", "endIndex": 3}}}],
+                          confirm=True)
+
+
+def test_sheets_edit_cannot_move_data_out_from_under_write_rules(tools):
+    # Rules are keyed by tab name and column index; renaming or shifting columns would escape them.
+    rename = {"updateSheetProperties": {"properties": {"sheetId": 7, "title": "X"}, "fields": "title"}}
+    with pytest.raises(PolicyError, match="renaming a tab"):
+        tools.sheets_edit("TRACKER", [rename])
+    with pytest.raises(PolicyError, match="renaming a tab"):
+        tools.sheets_edit("TRACKER", [{"updateSheetProperties": {"properties": {"sheetId": 7}, "fields": "*"}}])
+    for kind in ("insertDimension", "deleteDimension"):
+        shift = {kind: {"range": {"sheetId": 7, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 1}}}
+        with pytest.raises(PolicyError, match="on columns"):
+            tools.sheets_edit("TRACKER", [shift], confirm=True)
+    frozen = {"updateSheetProperties": {"properties": {"sheetId": 7, "gridProperties": {"frozenRowCount": 1}},
+                                         "fields": "gridProperties.frozenRowCount"}}
+    assert json.loads(tools.sheets_edit("TRACKER", [frozen]))["applied"] == 1
+    rows = {"insertDimension": {"range": {"sheetId": 7, "dimension": "ROWS", "startIndex": 1, "endIndex": 2}}}
+    assert json.loads(tools.sheets_edit("TRACKER", [rows]))["applied"] == 1
 
 
 def test_sheets_read_is_tsv_and_fenced(tools, api):
