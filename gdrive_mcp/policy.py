@@ -205,12 +205,25 @@ def check_sheet_requests(cfg: Config, file_id: str, requests: list, confirm: boo
                 raise PolicyError(
                     f"request {i}: cell value writes on this spreadsheet must use sheets_write/sheets_append"
                 )
+            # Rules are keyed by tab name and column index: renaming a tab or shifting columns
+            # would move ruled data out from under its rule.
+            fields = {f.strip() for f in str((req.get("updateSheetProperties") or {}).get("fields", "")).split(",")}
+            if fields & {"title", "*"}:
+                raise PolicyError(f"request {i}: renaming a tab is not allowed on a spreadsheet with write rules")
+            for kind in ("insertDimension", "deleteDimension"):
+                if ((req.get(kind) or {}).get("range") or {}).get("dimension") == "COLUMNS":
+                    raise PolicyError(
+                        f"request {i}: {kind} on columns is not allowed on a spreadsheet with write rules"
+                    )
     for i, req in enumerate(requests):
         if "deleteSheet" in req and not confirm:
             raise PolicyError(f"request {i}: deleteSheet removes a whole tab and needs confirm=true")
         if "deleteDimension" in req:
             rng = req["deleteDimension"].get("range", {})
-            count = int(rng.get("endIndex", 0)) - int(rng.get("startIndex", 0))
+            try:
+                count = int(rng.get("endIndex", 0)) - int(rng.get("startIndex", 0))
+            except (TypeError, ValueError):
+                raise PolicyError(f"request {i}: deleteDimension range must use integer indexes") from None
             if not confirm:
                 raise PolicyError(f"request {i}: deleteDimension needs confirm=true")
             if not 0 < count <= MAX_DELETE_DIMENSION:
