@@ -12,6 +12,12 @@
 //   Tool rules are shared with the local stdio proxy (local-mcp/stdio-proxy.mjs) through policy.mjs.
 // - Fixed-window rate limit per client IP, request body size cap.
 // Node standard library only.
+// Security-critical code copied across eight repos: the Cloudflare Access JWT/JWKS check, the rate
+// limit and the header stripping. Copies: public/gateway/gateway.mjs in LurigeLars/Docker-MCP,
+// gdrive-mcp, yfinance-mcp, firecrawl-local-mcp, InfluencerResearch, avanza-mcp and
+// Desktop-tradingview-mcp, plus deploy/local-gateway/public/gateway.mjs in github-mcp-server.
+// Make a security fix in every copy.
+
 import http from 'node:http';
 import crypto from 'node:crypto';
 import {
