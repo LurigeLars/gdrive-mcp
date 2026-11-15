@@ -1,68 +1,47 @@
 version: 2
 
+# One weekly pull request for all version updates (every ecosystem), so the
+# strict up-to-date branch rule needs a single CI run. Security updates are
+# not part of this group and still open immediately.
+multi-ecosystem-groups:
+  weekly-dependencies:
+    schedule:
+      interval: weekly
+      day: saturday
+      time: "09:00"
+      timezone: Europe/Stockholm
+    open-pull-requests-limit: 5
+
 updates:
   # Python project dependencies and uv.lock.
   - package-ecosystem: "uv"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "saturday"
-      time: "09:00"
-      timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 5
+    multi-ecosystem-group: weekly-dependencies
+    patterns: ["*"]
     groups:
       security-minor-patch:
         applies-to: "security-updates"
         patterns: ["*"]
         update-types: ["minor", "patch"]
-      python-minor-patch:
-        applies-to: "version-updates"
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   # Container images referenced by compose.public.yaml.
   - package-ecosystem: "docker-compose"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "saturday"
-      time: "09:00"
-      timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 5
+    multi-ecosystem-group: weekly-dependencies
+    patterns: ["*"]
     groups:
       security-minor-patch:
         applies-to: "security-updates"
         patterns: ["*"]
         update-types: ["minor", "patch"]
-      docker-compose-minor-patch:
-        applies-to: "version-updates"
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   # Third-party GitHub Actions used by workflows.
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "saturday"
-      time: "09:00"
-      timezone: "Europe/Stockholm"
-    open-pull-requests-limit: 5
+    multi-ecosystem-group: weekly-dependencies
+    patterns: ["*"]
     groups:
       security-minor-patch:
         applies-to: "security-updates"
         patterns: ["*"]
         update-types: ["minor", "patch"]
-      github-actions-minor-patch:
-        applies-to: "version-updates"
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
