@@ -6,7 +6,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "saturday"
       time: "09:00"
       timezone: "Europe/Stockholm"
     open-pull-requests-limit: 5
@@ -28,7 +28,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "saturday"
       time: "09:00"
       timezone: "Europe/Stockholm"
     open-pull-requests-limit: 5
@@ -50,7 +50,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
+      day: "saturday"
       time: "09:00"
       timezone: "Europe/Stockholm"
     open-pull-requests-limit: 5
