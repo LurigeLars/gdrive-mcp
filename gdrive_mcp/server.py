@@ -30,6 +30,7 @@ from .api import ApiError, GoogleApi  # noqa: E402
 from .policy import Config, PolicyError  # noqa: E402
 from .token_store import TokenStoreError  # noqa: E402
 from .tools import ImageResult, Tools  # noqa: E402
+from .tool_usage import audit_tool_usage, configure_usage, usage_report  # noqa: E402
 
 INSTRUCTIONS = """\
 DriveMCP: Google Drive, Docs and Sheets inside configured shared folders. Anything outside the configured
@@ -51,7 +52,7 @@ DriveMCP, it means these tools.
 - Sharing only works with addresses in the configured allowlist; trash only works for files this account created.
 """
 
-mcp = MCPServer("gdrive", instructions=INSTRUCTIONS)
+mcp = MCPServer("gdrive", instructions=INSTRUCTIONS, middleware=[audit_tool_usage])
 # Results are plain text; structured output would send every result twice and add output schemas.
 tool = functools.partial(mcp.tool, structured_output=False)
 # Hints for clients (ChatGPT shows them and asks for confirmation on writes). Enforcement stays in policy.py.
@@ -297,7 +298,14 @@ def sheets_edit(file_id: str, requests: list[dict], confirm: bool = False) -> st
     return call("sheets_edit", file_id, requests, confirm)
 
 
+@tool(annotations=READ)
+def tool_usage(days: int = 7, limit: int = 50, tool: str | None = None) -> str:
+    """Local per-tool counts, errors, latency and unobserved tools (1-30 UTC days)."""
+    return json.dumps(usage_report(days, limit, tool))
+
+
 def main() -> None:
+    configure_usage(LOCAL / "tool-usage.sqlite3")
     if len(sys.argv) == 3 and sys.argv[1] == "--http":
         from mcp.server.transport_security import TransportSecuritySettings
 

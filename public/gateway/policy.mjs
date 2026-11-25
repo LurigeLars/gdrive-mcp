@@ -3,6 +3,7 @@
 // ChatGPT gets the specialized subset only. Standard Drive/Docs/Sheets/Slides operations
 // belong to the official Google Drive connector; the full local DriveMCP tool surface is unchanged.
 export const DEFAULT_ALLOWED_TOOLS = [
+  'tool_usage',
   'drive_search',
   'drive_semantic_search',
   'drive_get',

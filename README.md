@@ -296,3 +296,7 @@ Each case is an object with `question`, `keywords`, and `expected_path`.
 The `.gitignore` intentionally excludes configuration, OAuth material (including DPAPI blobs), `.env` files, audit logs and local
 benchmark case files. Before making a fork or deployment public, still run a secret/PII scan over the full Git
 history; `.gitignore` only protects future commits.
+
+### Local tool usage
+
+`tool_usage(days=7, limit=50, tool=None)` reports per-tool counts, fixed failure categories, histogram latency upper bounds (p50/p95) and registered tools without observed calls. Local SQLite aggregates retain 30 UTC days. No file IDs, paths, arguments, content, credentials or exception prose are stored. Existing write audit remains unchanged. Disable recording with `GDRIVE_MCP_TOOL_USAGE=off`. Counts cover the local MCP server only, including calls through its gateway, not the separate official Google Drive connector. A zero count does not establish disuse. Buffered calls may be lost on abrupt exit; pending and dropped calls are reported.
