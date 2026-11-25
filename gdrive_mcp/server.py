@@ -46,7 +46,7 @@ DriveMCP, it means these tools.
 - Before docs_edit call docs_get; pass its revisionId and use its [start-end] indices.
 - Tables: docs_insert_table writes a whole grid in one call; docs_edit only makes empty ones.
 - Comments: drive_comments to read a thread id, drive_comment to answer or resolve it.
-- Before drive_update_text call drive_read; pass its modifiedTime.
+- Before editing existing text with drive_update_text, read every page with drive_read and use its modifiedTime.
 - Sheets use USER_ENTERED semantics: formulas work normally; prefix literal text beginning with =, + or @ with an apostrophe.
 - New files go into subfolders of configured roots unless config explicitly allows root-level creation.
 - Sharing only works with addresses in the configured allowlist; trash only works for files this account created.
@@ -168,8 +168,12 @@ def drive_create(folder_id: str, name: str, kind: Literal["doc", "sheet", "slide
 def drive_update_text(file_id: str, content: str | dict | list, expected_modified_time: str,
                       allow_shrink: bool = False) -> str:
     """Replace the whole content of a plain text file (md, json, txt, csv, py ...).
-    expected_modified_time is the modifiedTime from drive_read/drive_get. Shrinks are refused by default to protect
-    against writing back a paginated partial read; set allow_shrink=true only for intentional deletion/truncation."""
+
+    When editing existing text, follow drive_read nextOffset values until complete. If modifiedTime differs
+    between pages, restart the read. Pass that modifiedTime as expected_modified_time. If you already have
+    the complete replacement content, you can get modifiedTime from drive_get. Shrinking is rejected by
+    default. Set allow_shrink=true only for intentional edits that shorten the file.
+    """
     return call("drive_update_text", file_id, body(content), expected_modified_time, allow_shrink)
 
 
