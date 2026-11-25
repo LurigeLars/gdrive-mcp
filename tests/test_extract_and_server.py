@@ -143,7 +143,7 @@ def test_server_lists_all_tools(fake_server):
             return await c.list_tools()
 
     names = {t.name for t in _run(go).tools}
-    assert len(names) == 27 and "drive_semantic_search" in names and {
+    assert len(names) == 28 and "drive_semantic_search" in names and {
         "drive_read", "drive_append_text", "docs_edit", "sheets_append", "drive_share"
     } <= names
 
