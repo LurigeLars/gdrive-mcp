@@ -9,6 +9,7 @@ import {
 } from './policy.mjs';
 
 const expected = [
+  'tool_usage',
   'drive_search',
   'drive_semantic_search',
   'drive_get',
