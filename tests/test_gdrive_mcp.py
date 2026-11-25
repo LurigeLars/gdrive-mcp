@@ -254,6 +254,33 @@ def test_search_in_outside_folder_refused(tools):
 
 
 # --- reading -------------------------------------------------------------------------------------
+@pytest.mark.parametrize("mode", ["auto", "2026-07-28", "legacy"])
+def test_read_boundary_across_mcp_protocol_eras(mode, tools, monkeypatch):
+    import anyio
+    from mcp.client import Client
+
+    from gdrive_mcp import server
+
+    monkeypatch.setattr(server, "tools", lambda: tools)
+
+    async def run():
+        async with Client(server.mcp, mode=mode) as client:
+            if mode == "legacy":
+                assert client.protocol_version != "2026-07-28"
+            else:
+                assert client.protocol_version == "2026-07-28"
+            names = {tool.name for tool in (await client.list_tools()).tools}
+            assert "drive_read" in names
+            allowed = await client.call_tool("drive_read", {"file_id": "T1"})
+            assert not allowed.is_error
+            assert "[Untrusted file content" in allowed.content[0].text
+            denied = await client.call_tool("drive_read", {"file_id": "OUTFILE"})
+            assert denied.is_error
+            assert "top secret" not in str(denied.content)
+
+    anyio.run(run)
+
+
 def test_read_text_is_fenced_and_sliced(tools):
     out = tools.drive_read("T1", offset=0, max_chars=5)
     assert "[Untrusted file content" in out
