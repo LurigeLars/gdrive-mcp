@@ -4,7 +4,9 @@
 name: gdrive-public
 services:
   gateway:
-    image: node:26.13.1-alpine
+    # Reviewed local gateway runtime; never pull this local-only tag from a registry.
+    image: dockerlocal-gateway:node-26.13.1-r1
+    pull_policy: never
     container_name: gdrive-gateway
     command: ["node", "/app/gateway.mjs"]
     user: node
