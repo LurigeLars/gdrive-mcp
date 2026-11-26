@@ -243,6 +243,9 @@ task rather than an implied property of the Windows DPAPI implementation.
 
 ## Optional Cloudflare gateway
 
+The optional Docker/Cloudflare gateway uses the shared local-only `dockerlocal-gateway:node-26.13.1-r1` image. Provision it first with the reviewed `build-gateway-runtime.ps1` in [Docker-MCP](https://github.com/LurigeLars/Docker-MCP) (pinned Node base, Alpine package upgrades, unused npm removed, immutable Scout review). The image is never pulled from a registry. For independent deployments, build and review the same versioned image locally from that recipe before starting Compose; normal non-Docker MCP operation is unchanged.
+
+
 `compose.public.yaml` runs the Node gateway used by the shared Cloudflare Tunnel. Runtime Access settings are loaded from the local gitignored file:
 
 - `public/gateway.env`
